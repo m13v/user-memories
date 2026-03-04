@@ -353,7 +353,7 @@ class MemoryDB:
     # ── Semantic Search ────────────────────────────────────────────
 
     def semantic_search(self, query: str, limit: int = 20,
-                        threshold: float = 0.5) -> list[dict]:
+                        threshold: float = 0.3) -> list[dict]:
         """Search memories by semantic similarity. Falls back to text_search if unavailable."""
         if not self._vec_ready:
             return self.text_search(query, limit)
