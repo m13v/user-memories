@@ -16,7 +16,9 @@ log = logging.getLogger(__name__)
 def extract_memories(memories_db_path: str = "memories.db",
                      browsers: Optional[Set[str]] = None,
                      skip_indexeddb: bool = False,
-                     skip_localstorage: bool = False) -> MemoryDB:
+                     skip_localstorage: bool = False,
+                     skip_notion: bool = False,
+                     skip_notion_llm: bool = False) -> MemoryDB:
     """Build the memories database directly from browser files.
 
     Args:
@@ -56,6 +58,14 @@ def extract_memories(memories_db_path: str = "memories.db",
             ingest_localstorage(mem, profiles)
         except ImportError:
             log.warning("ccl_chromium_reader not installed — skipping Local Storage")
+
+    # 7. Notion → workspace contacts, page knowledge, meeting summaries
+    if not skip_notion:
+        try:
+            from user_memories.ingestors.notion import ingest_notion
+            ingest_notion(mem, skip_llm=skip_notion_llm)
+        except Exception as e:
+            log.warning(f"Notion ingestor failed: {e}")
 
     mem.conn.commit()
     stats = mem.stats()
