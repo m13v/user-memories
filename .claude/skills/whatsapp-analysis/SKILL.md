@@ -100,7 +100,7 @@ async (page) => {
     // Reload to trigger fresh decryption of all cached messages
     await page.reload({ waitUntil: 'networkidle' });
     // Wait for WhatsApp to load and decrypt messages
-    await new Promise(r => setTimeout(r, 8000));
+    await page.waitForTimeout(8000);
     return 'Interceptor installed and page reloaded. Decryptions are being captured.';
 }
 ```
@@ -211,16 +211,51 @@ Re-run Step 4 to collect newly decrypted messages.
 
 **Important**: After the initial page reload (Step 2), WhatsApp decrypts all cached/visible messages (~700-1000+). Clicking individual chats adds more but the bulk comes from the reload.
 
-### Step 6: Save results
+### Step 6: Store messages in memories.db
 
-Save the extracted messages to `scripts/decrypted_messages_all.json`:
+Save the extracted messages to the `messages` table in memories.db. This deduplicates automatically and resolves sender JIDs to contact names.
 
 ```python
-import json
-# messages = extracted from Step 4
-with open('scripts/decrypted_messages_all.json', 'w') as f:
-    json.dump({"count": len(messages), "messages": messages}, f, indent=2, ensure_ascii=False)
+import sys, json
+sys.path.insert(0, "/Users/matthewdi/user-memories")
+from user_memories import MemoryDB
+from user_memories.ingestors.messages import ingest_messages, message_stats
+
+mem = MemoryDB("/Users/matthewdi/user-memories/memories.db")
+
+# messages = the parsed messages list from Step 4
+inserted = ingest_messages(mem, messages)
+print(f"Inserted {inserted} new messages")
+
+stats = message_stats(mem)
+print(f"Total stored: {stats['total_messages']}")
+
+mem.close()
 ```
+
+### Step 7: Analyze messages and write relationship memories
+
+Read the stored messages, analyze patterns, and write structured memories:
+
+```python
+from user_memories.ingestors.messages import get_messages
+
+mem = MemoryDB("/Users/matthewdi/user-memories/memories.db")
+
+# Read all messages (or filter by sender/search)
+all_msgs = get_messages(mem, limit=1000)
+# get_messages(mem, sender="79850775077")  # filter by sender
+# get_messages(mem, search="SAP")          # search text
+
+# After analyzing, write relationship/interest memories:
+mem.upsert("relationship:ContactName", "description of relationship and topics discussed",
+           ["contact", "relationship"], 0.8, "whatsapp:messages")
+
+mem.conn.commit()
+mem.close()
+```
+
+The `messages` table accumulates across sessions. Each time you run "update WhatsApp messages", new messages are appended (deduped). Any Claude session can then query them for analysis without re-intercepting.
 
 ### Captured Keys (for reference)
 
