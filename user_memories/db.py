@@ -40,6 +40,11 @@ CREATE INDEX IF NOT EXISTS idx_links_source ON memory_links(source_id);
 CREATE INDEX IF NOT EXISTS idx_links_target ON memory_links(target_id);
 
 CREATE INDEX IF NOT EXISTS idx_search_text ON memories(search_text);
+
+CREATE TABLE IF NOT EXISTS metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 SINGLE_VALUE_KEYS = {
@@ -85,6 +90,8 @@ class MemoryDB:
             self.conn.execute("ALTER TABLE memories ADD COLUMN search_text TEXT")
             self.conn.execute("UPDATE memories SET search_text = key || ': ' || value WHERE search_text IS NULL")
             self.conn.commit()
+        if "reviewed_at" not in cols:
+            self.conn.execute("ALTER TABLE memories ADD COLUMN reviewed_at TEXT")
 
     # ── Upsert ─────────────────────────────────────────────────────
 
@@ -497,6 +504,90 @@ class MemoryDB:
             lines.append(f"**Contacts:** {len(contacts)} saved")
 
         return "\n".join(lines)
+
+    # ── Review Operations ─────────────────────────────────────────
+
+    def delete(self, memory_id: int):
+        """Delete a memory and its tags/links."""
+        self.conn.execute("DELETE FROM memory_tags WHERE memory_id=?", (memory_id,))
+        self.conn.execute("DELETE FROM memory_links WHERE source_id=? OR target_id=?", (memory_id, memory_id))
+        self.conn.execute("UPDATE memories SET superseded_by=NULL WHERE superseded_by=?", (memory_id,))
+        self.conn.execute("DELETE FROM memories WHERE id=?", (memory_id,))
+        self.conn.commit()
+
+    def update_memory(self, memory_id: int, key: str = None, value: str = None,
+                      confidence: float = None, tags: list[str] = None):
+        """Update fields on a memory. Regenerates search_text if key/value changed."""
+        updates, params = [], []
+        if key is not None:
+            updates.append("key=?")
+            params.append(key)
+        if value is not None:
+            updates.append("value=?")
+            params.append(value)
+        if confidence is not None:
+            updates.append("confidence=?")
+            params.append(confidence)
+        if key is not None or value is not None:
+            # Fetch current key/value to build search_text
+            row = self.conn.execute("SELECT key, value FROM memories WHERE id=?", (memory_id,)).fetchone()
+            if row:
+                new_key = key if key is not None else row[0]
+                new_val = value if value is not None else row[1]
+                updates.append("search_text=?")
+                params.append(f"{new_key}: {new_val}")
+        if updates:
+            params.append(memory_id)
+            self.conn.execute(f"UPDATE memories SET {', '.join(updates)} WHERE id=?", params)
+        if tags is not None:
+            self.conn.execute("DELETE FROM memory_tags WHERE memory_id=?", (memory_id,))
+            for tag in tags:
+                self.conn.execute("INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)", (memory_id, tag))
+        self.conn.commit()
+
+    def get_unreviewed(self, limit: int = 100) -> list[dict]:
+        """Get memories where reviewed_at IS NULL, with their tags."""
+        rows = self.conn.execute("""
+            SELECT m.id, m.key, m.value, m.confidence, m.source, m.created_at,
+                   m.superseded_by
+            FROM memories m
+            WHERE m.reviewed_at IS NULL
+            ORDER BY m.id
+            LIMIT ?
+        """, (limit,)).fetchall()
+        results = []
+        for r in rows:
+            tags = [t[0] for t in self.conn.execute(
+                "SELECT tag FROM memory_tags WHERE memory_id=?", (r[0],)
+            ).fetchall()]
+            results.append({
+                "id": r[0], "key": r[1], "value": r[2], "confidence": r[3],
+                "source": r[4], "created_at": r[5], "superseded_by": r[6],
+                "tags": tags,
+            })
+        return results
+
+    def mark_reviewed(self, memory_ids: list[int]):
+        """Set reviewed_at = now for given IDs."""
+        if not memory_ids:
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        placeholders = ",".join("?" for _ in memory_ids)
+        self.conn.execute(
+            f"UPDATE memories SET reviewed_at=? WHERE id IN ({placeholders})",
+            (now, *memory_ids),
+        )
+        self.conn.commit()
+
+    def get_meta(self, key: str) -> Optional[str]:
+        """Get metadata value."""
+        row = self.conn.execute("SELECT value FROM metadata WHERE key=?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def set_meta(self, key: str, value: str):
+        """Set metadata value (INSERT OR REPLACE)."""
+        self.conn.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", (key, value))
+        self.conn.commit()
 
     # ── Close ──────────────────────────────────────────────────────
 
