@@ -17,7 +17,8 @@ python extract.py --output /path/to/memories.db      # custom output path
 
 - `extract.py` — CLI entry point
 - `user_memories/__init__.py` — exports MemoryDB, extract_memories
-- `user_memories/db.py` — MemoryDB class (schema, upsert, search, supersession, staleness decay, entity linking, profile, review ops)
+- `user_memories/db.py` — MemoryDB class (schema, upsert with semantic dedup, search, semantic_search, supersession, entity linking, profile, review ops)
+- `user_memories/embeddings.py` — lazy-loading sentence-transformers + sqlite-vec wrapper
 - `user_memories/extract.py` — extract_memories() orchestrator
 - `user_memories/ingestors/browser_detect.py` — BrowserProfile, detect_browsers(), copy_db(), domain()
 - `user_memories/ingestors/constants.py` — lookup maps + browser paths (self-contained)
@@ -78,7 +79,7 @@ bash .claude/skills/memory-review/run.sh
 ## Design
 
 - **Reads browser files directly** — no intermediary scan.db needed
-- **One pip dependency**: `ccl_chromium_reader` (for IndexedDB + Local Storage LevelDB files). Everything else is stdlib.
+- **Dependencies**: `ccl_chromium_reader` (IndexedDB + Local Storage), `sentence-transformers` (semantic embeddings via all-MiniLM-L6-v2), `sqlite-vec` (vector search). Embeddings/vec gracefully degrade if unavailable.
 - **Ingestors pattern** — each data source is a separate module, easy to add new ones
 - **Self-ranking** — hit_rate = accessed_count / appeared_count, no manual curation
 
