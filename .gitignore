@@ -1,4 +1,7 @@
 *.db
+*.db-shm
+*.db-wal
 .venv/
 __pycache__/
 *.pyc
+scripts/
