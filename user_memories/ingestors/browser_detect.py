@@ -6,7 +6,7 @@ import tempfile
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def _chromium_profiles(browser: str, base: Path) -> list[BrowserProfile]:
     return profiles
 
 
-def detect_browsers(allowed: set[str] | None = None) -> list[BrowserProfile]:
+def detect_browsers(allowed: Optional[Set[str]] = None) -> list[BrowserProfile]:
     """Return all detected browser profiles. Optionally filter by browser name."""
     profiles: list[BrowserProfile] = []
 
