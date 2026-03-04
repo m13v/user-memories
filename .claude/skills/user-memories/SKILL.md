@@ -26,15 +26,26 @@ from user_memories import MemoryDB
 
 mem = MemoryDB("/Users/matthewdi/user-memories/memories.db")
 
-# Search returns results ranked by hit_rate (accessed/appeared), then confidence
-results = mem.search(["identity", "email"], limit=10)
+# Search returns results ranked by hit_rate (accessed/appeared), then counts
+results = mem.search(["identity", "contact_info"], limit=10)
 for r in results:
-    print(f'{r["key"]}: {r["value"]} (conf={r["confidence"]:.1f})')
+    print(f'{r["key"]}: {r["value"]}')
 
 # When you actually USE a memory, mark it accessed — this trains the ranking
 mem.mark_accessed(results[0]["id"])
 
 mem.close()
+```
+
+### Semantic search (natural language)
+
+```python
+# Find memories by meaning, not just keywords
+results = mem.semantic_search("what products does Matthew build")
+for r in results[:5]:
+    print(f'{r["key"]}: {r["value"][:80]} (sim={r["similarity"]:.3f})')
+
+# Falls back to text_search() if sentence-transformers not installed
 ```
 
 ### Quick SQL queries
@@ -45,19 +56,20 @@ sqlite3 /Users/matthewdi/user-memories/memories.db
 
 ```sql
 -- All identity info
-SELECT m.key, m.value, m.confidence FROM memories m
+SELECT m.key, m.value FROM memories m
 JOIN memory_tags t ON m.id = t.memory_id WHERE t.tag = 'identity'
-ORDER BY m.confidence DESC;
+AND m.superseded_by IS NULL;
 
--- All emails
-SELECT m.value, m.confidence, m.source FROM memories m
-JOIN memory_tags t ON m.id = t.memory_id WHERE t.tag = 'email'
-ORDER BY m.confidence DESC;
+-- All contact info (emails, phones)
+SELECT m.key, m.value, m.source FROM memories m
+JOIN memory_tags t ON m.id = t.memory_id WHERE t.tag = 'contact_info'
+AND m.superseded_by IS NULL;
 
 -- All contacts
 SELECT m.key, m.value FROM memories m
 JOIN memory_tags t ON m.id = t.memory_id WHERE t.tag = 'contact'
-ORDER BY m.accessed_count DESC, m.confidence DESC;
+AND m.superseded_by IS NULL
+ORDER BY m.accessed_count DESC;
 
 -- Most accessed memories (the ones that proved useful)
 SELECT key, value, accessed_count, appeared_count,
@@ -66,30 +78,26 @@ FROM memories WHERE accessed_count > 0
 ORDER BY hit_rate DESC;
 
 -- Search by key pattern
-SELECT key, value, confidence FROM memories WHERE key LIKE 'account:%' ORDER BY confidence DESC;
+SELECT key, value FROM memories WHERE key LIKE 'account:%'
+AND superseded_by IS NULL;
 ```
 
-## Available Tags
+## Canonical Tags
 
 | Tag | What it covers | Example keys |
 |-----|---------------|-------------|
-| `identity` | Name, email, phone, company | `first_name`, `last_name`, `full_name`, `email`, `phone`, `company` |
-| `email` | All email addresses | `email` |
-| `phone` | Phone numbers | `phone` |
+| `identity` | Name, DOB, gender, job title, language | `first_name`, `last_name`, `full_name`, `date_of_birth` |
+| `contact_info` | Email addresses, phone numbers | `email`, `phone` |
 | `address` | Physical addresses | `street_address`, `city`, `state`, `zip`, `country` |
-| `location` | Same as address | (alias) |
-| `company` | Employer/org names | `company` |
-| `contact` | People the user knows | `contact:{Name}`, `linkedin:{Name}` |
-| `communication` | Emails, phones, contacts, messaging | `email`, `phone`, `contact:*` |
-| `account` | Service accounts + tool usage | `account:{domain}`, `tool:{Service}` |
-| `credential` | Login usernames per domain | `account:{domain}` |
-| `tool` | Tools/services used | `tool:GitHub`, `tool:Slack`, `tool:Stripe` |
 | `payment` | Card holder names, expiry | `card_holder_name`, `card_expiry`, `card_nickname` |
-| `work` | Work-related (company, dev tools, LinkedIn) | `company`, `tool:GitHub`, `linkedin:*` |
+| `account` | Service accounts, login credentials | `account:{domain}` |
+| `tool` | Tools/services used (from history) | `tool:GitHub`, `tool:Slack`, `tool:Stripe` |
+| `contact` | People the user knows | `contact:{Name}`, `linkedin:{Name}` |
+| `work` | Work-related (company, LinkedIn) | `company`, `linkedin:*` |
+| `knowledge` | Interests, skills, projects, products | `product:*`, `project:*`, `interest:*` |
+| `communication` | Messaging platforms | `tool:Slack`, `tool:WhatsApp` |
 | `social` | Social platforms | `tool:LinkedIn`, `tool:X/Twitter` |
-| `dev` | Dev tools | `tool:GitHub`, `tool:Vercel` |
 | `finance` | Financial tools | `tool:Stripe`, `tool:QuickBooks` |
-| `ai` | AI tools | `tool:ChatGPT`, `tool:Claude` |
 
 ## Ranking System
 
@@ -97,20 +105,25 @@ Every `search()` call increments `appeared_count` for all returned memories. Whe
 
 **hit_rate** = `accessed_count / appeared_count`
 
-Memories that appear in results but never get used naturally sink in ranking. Memories that get used every time they appear rise to the top. This creates a self-tuning system with no manual curation.
+Memories that appear in results but never get used naturally sink in ranking. Memories that get used every time they appear rise to the top. No manual curation needed.
+
+## Semantic Dedup
+
+On `upsert()`, near-duplicate memories (cosine similarity >= 0.92 with same key prefix) are automatically superseded. This prevents storing "Screen recording tool for compliance" and "Screen recording tool launched on Product Hunt for compliance use cases" as separate entries.
 
 ## Task-Specific Tag Queries
 
 | Task | Tags to search |
 |------|---------------|
-| Fill out a form | `["identity", "email", "phone", "address"]` |
-| Send an email | `["email", "communication"]` + search contact by name |
+| Fill out a form | `["identity", "contact_info", "address"]` |
+| Send an email | `["contact_info", "communication"]` + search contact by name |
 | Book a flight/hotel | `["identity", "address", "payment"]` |
-| Log into a service | `["account", "credential"]` |
-| Invoice a client | `["identity", "company", "address", "payment"]` |
+| Log into a service | `["account"]` |
+| Invoice a client | `["identity", "work", "address", "payment"]` |
 | Find a contact | `["contact"]` + filter by key pattern |
-| Dev/deploy task | `["account", "dev"]` |
+| Dev/deploy task | `["account", "tool"]` |
 | Social media post | `["account", "social"]` |
+| Research question | `mem.semantic_search("your question here")` |
 
 ## Rebuilding Memories
 
@@ -124,4 +137,20 @@ python extract.py --browsers arc chrome              # specific browsers
 python extract.py --no-indexeddb --no-localstorage   # fast, skip LevelDB
 ```
 
+### Backfill embeddings (after first install or rebuild)
+
+```python
+from user_memories import MemoryDB
+mem = MemoryDB("/Users/matthewdi/user-memories/memories.db")
+n = mem.backfill_embeddings()
+print(f"Embedded {n} memories")
+mem.close()
+```
+
 This reads browser files directly (History, Login Data, Web Data, IndexedDB, Local Storage). The memory database preserves `appeared_count` and `accessed_count` across rebuilds via UPSERT logic — rankings are never lost.
+
+## Dependencies
+
+- `ccl_chromium_reader` — IndexedDB + Local Storage LevelDB files
+- `sentence-transformers` — semantic embeddings (all-MiniLM-L6-v2, ~90MB)
+- `sqlite-vec` — vector similarity search in SQLite
