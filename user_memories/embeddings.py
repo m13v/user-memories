@@ -2,6 +2,10 @@
 
 Uses a plain SQLite table for embeddings (no sqlite-vec extension needed)
 and computes cosine similarity in Python via numpy.
+
+Model: nomic-embed-text-v1.5 (768-dim, 2K context, MTEB ~65).
+Nomic uses task prefixes: "search_document: " for stored texts,
+"search_query: " for queries.
 """
 
 import logging
@@ -13,18 +17,18 @@ log = logging.getLogger(__name__)
 # Module-level state — loaded on first call
 _model = None
 
-EMBEDDING_DIM = 384
-MODEL_NAME = "all-MiniLM-L6-v2"
+EMBEDDING_DIM = 768
+MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
 
 
 def _load_model():
-    """Load sentence-transformers model on first use (~90MB download)."""
+    """Load sentence-transformers model on first use (~274MB download)."""
     global _model
     if _model is not None:
         return _model
     try:
         from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer(MODEL_NAME)
+        _model = SentenceTransformer(MODEL_NAME, trust_remote_code=True)
         log.info(f"Loaded embedding model: {MODEL_NAME}")
     except ImportError:
         log.warning("sentence-transformers not installed — semantic search disabled")
@@ -37,21 +41,27 @@ def is_available() -> bool:
     return _load_model() is not None
 
 
-def embed_text(text: str) -> Optional[list[float]]:
-    """Embed a single text string. Returns 384-dim vector or None if unavailable."""
+def embed_text(text: str, prefix: str = "search_document") -> Optional[list[float]]:
+    """Embed a single text string. Returns 768-dim vector or None if unavailable.
+
+    Args:
+        text: The text to embed.
+        prefix: "search_document" for storing, "search_query" for searching.
+    """
     model = _load_model()
     if model is None:
         return None
-    vec = model.encode(text, normalize_embeddings=True)
+    vec = model.encode(f"{prefix}: {text}", normalize_embeddings=True)
     return vec.tolist()
 
 
-def embed_batch(texts: list[str]) -> list[Optional[list[float]]]:
-    """Embed a batch of texts. Returns list of 384-dim vectors."""
+def embed_batch(texts: list[str], prefix: str = "search_document") -> list[Optional[list[float]]]:
+    """Embed a batch of texts. Returns list of 768-dim vectors."""
     model = _load_model()
     if model is None:
         return [None] * len(texts)
-    vecs = model.encode(texts, normalize_embeddings=True, batch_size=64)
+    prefixed = [f"{prefix}: {t}" for t in texts]
+    vecs = model.encode(prefixed, normalize_embeddings=True, batch_size=64)
     return [v.tolist() for v in vecs]
 
 

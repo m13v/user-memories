@@ -358,7 +358,7 @@ class MemoryDB:
         if not self._vec_ready:
             return self.text_search(query, limit)
 
-        vec = embed_text(query)
+        vec = embed_text(query, prefix="search_query")
         if vec is None:
             return self.text_search(query, limit)
 
@@ -456,6 +456,17 @@ class MemoryDB:
         self.conn.commit()
         log.info(f"Embedded {count} memories")
         return count
+
+    def regenerate_embeddings(self) -> int:
+        """Wipe all embeddings and recompute with current model. Use after model change."""
+        if not self._vec_ready:
+            log.warning("Embeddings table not available, cannot regenerate")
+            return 0
+
+        self.conn.execute("DELETE FROM memory_embeddings")
+        self.conn.commit()
+        log.info("Cleared all existing embeddings")
+        return self.backfill_embeddings()
 
     # ── Contradiction / History ────────────────────────────────────
 
