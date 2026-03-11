@@ -26,7 +26,11 @@ const COPY_TARGETS = [
 const NEVER_OVERWRITE = new Set(['memories.db', '.venv', 'scripts', 'config.json']);
 
 // Core Python deps (tier 1) — enough for tag search, SQL, extraction
-const CORE_DEPS = ['ccl_chromium_reader', 'numpy'];
+// ccl_chromium_reader is only on GitHub, not PyPI
+const CORE_DEPS = [
+  'git+https://github.com/cclgroupltd/ccl_chromium_reader.git',
+  'numpy',
+];
 
 // Embedding deps (tier 2) — optional, for semantic search
 const EMBEDDING_DEPS = ['onnxruntime', 'huggingface_hub', 'tokenizers'];
@@ -51,10 +55,26 @@ function linkOrRelink(target, linkPath) {
 }
 
 function findPython() {
-  for (const cmd of ['python3', 'python']) {
+  // Try specific versions first (prefer newer), then generic
+  const candidates = [
+    'python3.13', 'python3.12', 'python3.11', 'python3.10',
+    'python3', 'python',
+  ];
+  for (const cmd of candidates) {
     const result = spawnSync(cmd, ['--version'], { stdio: 'pipe' });
-    if (result.status === 0) return cmd;
+    if (result.status === 0) {
+      const version = result.stdout.toString().trim();
+      const match = version.match(/(\d+)\.(\d+)/);
+      if (match) {
+        const major = parseInt(match[1]);
+        const minor = parseInt(match[2]);
+        if (major >= 3 && minor >= 10) return cmd;
+      }
+    }
   }
+  // Fallback: return whatever python3 is available (will warn later)
+  const fallback = spawnSync('python3', ['--version'], { stdio: 'pipe' });
+  if (fallback.status === 0) return 'python3';
   return null;
 }
 
@@ -165,8 +185,8 @@ function init() {
   console.log('  installing core dependencies...');
   const pipResult = spawnSync(pipPath(), ['install', ...CORE_DEPS, '-q'], { stdio: 'inherit' });
   if (pipResult.status !== 0) {
-    console.warn('  WARNING: Some dependencies failed to install. You may need to install manually:');
-    console.warn(`    ${pipPath()} install ${CORE_DEPS.join(' ')}`);
+    console.warn('  WARNING: Some dependencies failed to install. Check that git is available and try:');
+    console.warn(`    ${pipPath()} install git+https://github.com/cclgroupltd/ccl_chromium_reader.git numpy`);
   } else {
     console.log('  core dependencies installed');
   }
