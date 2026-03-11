@@ -33,7 +33,19 @@ NOISE_VALUE_PATTERNS = [
 NOISE_WORDS = {
     "test", "asdf", "qwerty", "foo", "bar", "baz", "placeholder",
     "technical placeholder just to pay",
+    "wegs sdg", "sdgsdg",  # keyboard mash garbage
+    "mediar inc", "mediar, inc.", "mediar",  # company name in card holder field
+    "omi",  # product name in name field
 }
+
+# Known garbage address field combinations (city + state that don't match real location)
+# Keep only entries where city/state are consistent with San Francisco, CA
+KNOWN_CITIES = {"san francisco", "sf"}
+KNOWN_STATES = {"california", "ca"}
+KNOWN_ZIPS = {"94102", "94103", "94105", "94107", "94109", "94110", "94111",
+              "94114", "94115", "94117", "94118", "94121", "94122", "94123",
+              "94124", "94127", "94129", "94130", "94131", "94132", "94133",
+              "94134"}
 
 
 def now_iso():
@@ -206,7 +218,40 @@ def run_cleanup(db_path: str = DB_PATH, dry_run: bool = False):
     if not dry_run:
         conn.commit()
 
-    # ── 8. Mark all remaining non-superseded as reviewed ─────────
+    # ── 8. Clean up bad address entries ──────────────────────────
+    # Delete city/state/zip entries that don't match known SF location
+    city_rows = conn.execute(
+        "SELECT id, value FROM memories WHERE key='city' AND superseded_by IS NULL"
+    ).fetchall()
+    for mid, val in city_rows:
+        if val.lower().strip() not in KNOWN_CITIES:
+            delete_id(mid)
+            stats.setdefault("address_noise_deleted", 0)
+            stats["address_noise_deleted"] += 1
+
+    state_rows = conn.execute(
+        "SELECT id, value FROM memories WHERE key='state' AND superseded_by IS NULL"
+    ).fetchall()
+    for mid, val in state_rows:
+        if val.lower().strip() not in KNOWN_STATES:
+            delete_id(mid)
+            stats.setdefault("address_noise_deleted", 0)
+            stats["address_noise_deleted"] += 1
+
+    zip_rows = conn.execute(
+        "SELECT id, value FROM memories WHERE key='zip' AND superseded_by IS NULL"
+    ).fetchall()
+    for mid, val in zip_rows:
+        if val.strip() not in KNOWN_ZIPS:
+            delete_id(mid)
+            stats.setdefault("address_noise_deleted", 0)
+            stats["address_noise_deleted"] += 1
+
+    if not dry_run:
+        conn.commit()
+    log.info(f"Deleted {stats.get('address_noise_deleted', 0)} bad address entries")
+
+    # ── 9. Mark all remaining non-superseded as reviewed ─────────
     unreviewed_ids = [r[0] for r in conn.execute(
         "SELECT id FROM memories WHERE reviewed_at IS NULL AND superseded_by IS NULL"
     ).fetchall()]
@@ -225,6 +270,7 @@ def run_cleanup(db_path: str = DB_PATH, dry_run: bool = False):
     log.info(f"  phone dupes removed:     {stats['phone_deduped']}")
     log.info(f"  email dupes removed:     {stats['email_deduped']}")
     log.info(f"  noise patterns deleted:  {stats['noise_pattern_deleted']}")
+    log.info(f"  address noise deleted:   {stats.get('address_noise_deleted', 0)}")
     log.info(f"  marked reviewed:         {stats['marked_reviewed']}")
     log.info(f"\n  Final DB: {final_stats['total_memories']} memories")
     log.info(f"  Unreviewed remaining: {conn.execute('SELECT COUNT(*) FROM memories WHERE reviewed_at IS NULL').fetchone()[0]}")
