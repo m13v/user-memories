@@ -1,6 +1,6 @@
 {
   "name": "user-memories",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Extract user knowledge (identity, contacts, accounts, addresses, payments) from browser data into a self-ranking SQLite database. Install as a Claude Code agent skill.",
   "bin": {
     "user-memories": "bin/cli.js"
