@@ -1,0 +1,40 @@
+{
+  "name": "user-memories",
+  "version": "1.0.0",
+  "description": "Extract user knowledge (identity, contacts, accounts, addresses, payments) from browser data into a self-ranking SQLite database. Install as a Claude Code agent skill.",
+  "bin": {
+    "user-memories": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "user_memories/",
+    "skill/",
+    "review/",
+    "setup/",
+    "autofill/",
+    "whatsapp/",
+    "extract.py",
+    "clean.py"
+  ],
+  "keywords": [
+    "browser-data",
+    "memory",
+    "identity",
+    "claude",
+    "claude-code",
+    "ai-agent",
+    "knowledge-base",
+    "embeddings",
+    "autofill"
+  ],
+  "author": "Matthew Diakonov",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m13v/user-memories.git"
+  },
+  "homepage": "https://github.com/m13v/user-memories",
+  "engines": {
+    "node": ">=16"
+  }
+}
