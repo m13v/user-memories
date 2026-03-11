@@ -1,11 +1,19 @@
 # user-memories
 
-Standalone tool that extracts user knowledge (identity, contacts, accounts, addresses, payments) from browser data into a self-ranking SQLite database.
+Standalone tool that extracts user knowledge (identity, contacts, accounts, addresses, payments) from browser data into a self-ranking SQLite database. Distributed as an npm package.
+
+## Install
+
+```bash
+npx user-memories init                    # first-time setup
+npx user-memories install-embeddings      # optional: semantic search (~180MB)
+npx user-memories update                  # update code, preserve data
+```
 
 ## Quick Start
 
 ```bash
-cd /Users/matthewdi/user-memories
+cd ~/user-memories
 source .venv/bin/activate
 python extract.py                                    # scan all browsers
 python extract.py --browsers arc chrome              # specific browsers only
@@ -15,73 +23,69 @@ python extract.py --output /path/to/memories.db      # custom output path
 
 ## Structure
 
+### Python module
 - `extract.py` — CLI entry point
+- `clean.py` — rule-based cleanup (no LLM needed)
 - `user_memories/__init__.py` — exports MemoryDB, extract_memories
-- `user_memories/db.py` — MemoryDB class (schema, upsert with semantic dedup, search, semantic_search, supersession, entity linking, profile, review ops)
-- `user_memories/embeddings.py` — lazy-loading sentence-transformers + sqlite-vec wrapper
+- `user_memories/db.py` — MemoryDB class (schema, upsert, search, semantic_search, profile, review ops)
+- `user_memories/embeddings.py` — lazy-loading ONNX Runtime + nomic-embed-text-v1.5
 - `user_memories/extract.py` — extract_memories() orchestrator
-- `user_memories/ingestors/browser_detect.py` — BrowserProfile, detect_browsers(), copy_db(), domain()
-- `user_memories/ingestors/constants.py` — lookup maps + browser paths (self-contained)
-- `user_memories/ingestors/webdata.py` — reads Web Data files directly (autofill, addresses, credit cards)
-- `user_memories/ingestors/history.py` — reads browser History SQLite (tool/service usage)
-- `user_memories/ingestors/logins.py` — reads Login Data SQLite (accounts, emails)
-- `user_memories/ingestors/indexeddb.py` — reads WhatsApp IndexedDB via ccl_chromium_reader (contacts)
-- `user_memories/ingestors/localstorage.py` — reads LinkedIn Local Storage via ccl_chromium_reader (connections)
+- `user_memories/ingestors/` — one module per data source (webdata, history, logins, indexeddb, localstorage, bookmarks, notion)
+
+### npm package
+- `package.json` — npm metadata, `bin: user-memories`
+- `bin/cli.js` — `npx user-memories init/update/install-embeddings`
+- `.npmignore` — excludes .venv, *.db, scripts/, etc.
+
+### Skills (symlinked to ~/.claude/skills/ by npm init)
+- `skill/SKILL.md` → `~/.claude/skills/user-memories` — query memories
+- `setup/SKILL.md` → `~/.claude/skills/user-memories-setup` — setup wizard
+- `review/SKILL.md` → `~/.claude/skills/memory-review` — LLM-powered review
+- `review/run.sh` — weekly extract + review automation
+- `autofill/SKILL.md` → `~/.claude/skills/autofill-profiles` — browser autofill reference
+- `whatsapp/SKILL.md` → `~/.claude/skills/whatsapp-analysis` — WhatsApp data analysis
 
 ## Review Pipeline
 
-After extraction, ~50% of entries are noise (autofill duplicates, code identifiers in name fields, other people's data). The `memory-review` skill runs Claude to clean these up.
+After extraction, ~50% of entries are noise. Two cleanup options:
 
-### Manual
-
+### Rule-based (fast, no LLM)
 ```bash
-# In Claude Code, run the skill:
+cd ~/user-memories && source .venv/bin/activate && python clean.py
+```
+
+### LLM-powered (thorough)
+```bash
+# In Claude Code:
 /memory-review
 ```
 
 ### Automated (weekly via launchd)
-
-The review pipeline runs weekly as a macOS launchd agent: extract browser data, then Claude reviews new entries.
-
-**Files:**
-- `.claude/skills/memory-review/run.sh` — extract + Claude review script
-- `.claude/skills/memory-review/SKILL.md` — review criteria and workflow
-- `launchd/com.m13v.memory-review.plist` — weekly schedule (604800s)
-
-**Install:**
-
 ```bash
-# Symlink plist into LaunchAgents
-ln -sf "$(pwd)/launchd/com.m13v.memory-review.plist" ~/Library/LaunchAgents/
-
-# Load the agent
+ln -sf ~/user-memories/launchd/com.m13v.memory-review.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.m13v.memory-review.plist
-
-# Verify
-launchctl list | grep memory-review
 ```
 
-**Manual trigger:**
+Logs: `~/user-memories/review/logs/` (auto-cleaned after 30 days)
 
-```bash
-bash .claude/skills/memory-review/run.sh
-```
+## Dependencies
 
-**Logs:** `.claude/skills/memory-review/logs/` (auto-cleaned after 30 days)
+**Core** (installed by `npx user-memories init`):
+- `ccl_chromium_reader` — IndexedDB + Local Storage LevelDB
+- `numpy` — vector math
 
-### Review phases
-
-1. **Fast pass** — bulk-delete `autofill:*`, `address_type_*`, superseded entries (~50% of noise)
-2. **Supersession chain repair** — fix corrupted single-value key chains (first_name, last_name, etc.)
-3. **Per-entry review** — classify remaining as KEEP/DELETE/MERGE/FIX in batches of 50
-4. **Profile verification** — run `profile_text()` and check for residual issues
+**Embeddings** (optional, `npx user-memories install-embeddings`):
+- `onnxruntime` — ONNX model inference
+- `huggingface_hub` + `tokenizers` — model download + tokenization
+- Model: nomic-embed-text-v1.5 (~131MB, downloads on first use)
 
 ## Design
 
 - **Reads browser files directly** — no intermediary scan.db needed
-- **Dependencies**: `ccl_chromium_reader` (IndexedDB + Local Storage), `sentence-transformers` (semantic embeddings via all-MiniLM-L6-v2), `sqlite-vec` (vector search). Embeddings/vec gracefully degrade if unavailable.
+- **Two-tier deps** — core install is fast (~20MB), embeddings are optional (~180MB)
 - **Ingestors pattern** — each data source is a separate module, easy to add new ones
 - **Self-ranking** — hit_rate = accessed_count / appeared_count, no manual curation
+- **Graceful degradation** — semantic search falls back to text search if embeddings unavailable
 
 ## Git
 
