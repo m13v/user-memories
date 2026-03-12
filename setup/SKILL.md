@@ -96,8 +96,8 @@ This scans all detected browsers (Arc, Chrome, Brave, Edge, Safari, Firefox) and
 
 **The pipeline logs progress per step:**
 ```
-[Web Data] starting...
-[Web Data] done in 3.2s
+[Autofill] starting...
+[Autofill] done in 0.1s
 [History] starting...
   History: 874 domains, 45 known services
 [History] done in 1.8s
@@ -105,12 +105,12 @@ This scans all detected browsers (Arc, Chrome, Brave, Edge, Safari, Firefox) and
 [Bookmarks] done in 0.4s
 [Logins] starting...
 [Logins] done in 2.1s
-[IndexedDB] starting...
-[IndexedDB] done in 15.3s
-[Local Storage] starting...
-[Local Storage] done in 8.7s
+[LinkedIn] starting...
+[LinkedIn] done in 8.7s
 [Notion] starting...
 [Notion] done in 0.1s
+[WhatsApp] starting...
+[WhatsApp] done in 15.3s
 [Embeddings] starting...
   Backfilling embeddings for 5400 memories...
 [Embeddings] done in 22.4s
@@ -128,13 +128,14 @@ Extraction complete:
   Time: 54s
 
   Breakdown:
-    Web Data:      3.2s
-    History:       1.8s
-    Bookmarks:     0.4s
-    Logins:        2.1s
-    IndexedDB:    15.3s (WhatsApp contacts)
-    Local Storage:  8.7s (LinkedIn connections)
-    Embeddings:   22.4s (semantic vectors)
+    Autofill:      0.1s  (forms, addresses, cards)
+    History:       1.8s  (tools & services)
+    Bookmarks:     0.4s  (interests & links)
+    Logins:        2.1s  (saved accounts)
+    LinkedIn:      8.7s  (connections)
+    Notion:        0.1s  (contacts & pages)
+    WhatsApp:     15.3s  (contacts)
+    Embeddings:   22.4s  (semantic vectors)
 ```
 
 ### Step 4: Verify extraction
