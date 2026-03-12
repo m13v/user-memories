@@ -7,18 +7,18 @@
 	<key>ProgramArguments</key>
 	<array>
 		<string>/bin/bash</string>
-		<string>/Users/matthewdi/user-memories/.claude/skills/memory-review/run.sh</string>
+		<string>/Users/matthewdi/user-memories/review/run.sh</string>
 	</array>
 	<key>StartInterval</key>
 	<integer>604800</integer>
 	<key>StandardOutPath</key>
-	<string>/Users/matthewdi/user-memories/.claude/skills/memory-review/logs/launchd-stdout.log</string>
+	<string>/Users/matthewdi/user-memories/review/logs/launchd-stdout.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Users/matthewdi/user-memories/.claude/skills/memory-review/logs/launchd-stderr.log</string>
+	<string>/Users/matthewdi/user-memories/review/logs/launchd-stderr.log</string>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>/Users/matthewdi/.nvm/versions/node/v20.19.4/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>HOME</key>
 		<string>/Users/matthewdi</string>
 	</dict>
