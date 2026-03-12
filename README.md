@@ -19,26 +19,28 @@ Supported browsers: Arc, Chrome, Brave, Edge, Safari, Firefox.
 ## Install
 
 ```bash
-git clone https://github.com/m13v/user-memories.git
-cd user-memories
-python -m venv .venv && source .venv/bin/activate
-
-# Core
-pip install numpy onnxruntime huggingface_hub tokenizers
-
-# Optional: WhatsApp + LinkedIn extraction
-pip install ccl_chromium_reader
+npx user-memories init                               # sets up ~/user-memories, Python venv, core deps
+npx user-memories install-embeddings                  # optional: semantic search (~180MB)
 ```
 
-Requires Python 3.12+. macOS only (reads from `~/Library/Application Support/`).
+Requires Python 3.10+ and Node.js 16+. macOS only (reads from `~/Library/Application Support/`).
+
+This creates `~/user-memories/` with a Python venv, installs dependencies, and symlinks Claude Code skills to `~/.claude/skills/`.
 
 ## Usage
 
 ```bash
+cd ~/user-memories && source .venv/bin/activate
 python extract.py                                    # scan all browsers
 python extract.py --browsers arc chrome              # specific browsers
 python extract.py --no-indexeddb --no-localstorage   # skip LevelDB (faster)
 python extract.py --output /path/to/memories.db      # custom output path
+```
+
+To update after a new release:
+
+```bash
+npx user-memories update                             # updates code, preserves memories.db
 ```
 
 ## Python API
