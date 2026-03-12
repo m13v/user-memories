@@ -42,11 +42,42 @@ def _serialize_value(val, depth=0):
     return str(val)
 
 
+def _normalize_phone(raw: str) -> str:
+    """Normalize a phone number to digits-only with leading +."""
+    digits = "".join(c for c in raw if c.isdigit())
+    if not digits:
+        return raw
+    if not digits.startswith("+"):
+        digits = "+" + digits
+    return digits
+
+
+def _extract_phone(data: dict) -> str:
+    """Extract and normalize a phone number from a WhatsApp contact record."""
+    phone = data.get("phoneNumber") or ""
+    jid = data.get("id") or ""
+
+    if not phone and "@" in str(jid):
+        # Extract digits from JID (works for both @c.us and @s.whatsapp.net)
+        phone = str(jid).split("@")[0]
+
+    if phone:
+        return _normalize_phone(phone)
+    return ""
+
+
 def ingest_indexeddb(mem: MemoryDB, profiles: list[BrowserProfile]):
-    """Extract WhatsApp contacts from Chromium IndexedDB."""
+    """Extract WhatsApp contacts from Chromium IndexedDB.
+
+    Deduplicates contacts by normalized phone number — WhatsApp stores each
+    contact under both @c.us and @s.whatsapp.net JIDs, which previously
+    inflated the database by ~44%.
+    """
     from ccl_chromium_reader import ccl_chromium_indexeddb
 
-    total = 0
+    # Collect all contacts first, dedup by (name, phone)
+    seen: dict[tuple[str, str], dict] = {}  # (name, phone) -> {tags, value}
+
     for profile in profiles:
         if profile.browser in ("safari", "firefox"):
             continue
@@ -55,9 +86,7 @@ def ingest_indexeddb(mem: MemoryDB, profiles: list[BrowserProfile]):
         if not idb_root.exists():
             continue
 
-        # Only look for WhatsApp origins
         for db_dir in sorted(idb_root.glob("*whatsapp*_0.indexeddb.leveldb")):
-            origin = db_dir.name.split("_0.indexeddb")[0]
             blob_dir = db_dir.parent / db_dir.name.replace(".leveldb", ".blob")
 
             tmp_db = _copy_dir(db_dir)
@@ -85,24 +114,35 @@ def ingest_indexeddb(mem: MemoryDB, profiles: list[BrowserProfile]):
                                 continue
 
                             name = data.get("name") or data.get("pushname") or data.get("verifiedName") or ""
-                            phone = data.get("phoneNumber") or ""
-                            jid = data.get("id") or ""
                             if not name:
                                 continue
-                            if not phone and "@c.us" in str(jid):
-                                phone = str(jid).split("@")[0]
-                                if not phone.startswith("+") and len(phone) > 5:
-                                    phone = "+" + phone
+
+                            # Skip junk names
+                            stripped = name.strip()
+                            if not stripped or stripped == "." or stripped == "<Undefined>":
+                                continue
+                            # Skip emoji-only names (no alphanumeric chars)
+                            if not any(c.isalnum() for c in stripped):
+                                continue
+
+                            phone = _extract_phone(data)
+                            jid = data.get("id") or ""
 
                             tags = ["contact", "communication"]
                             if data.get("isBusiness") or data.get("isEnterprise"):
                                 tags.append("work")
 
-                            if phone:
-                                mem.upsert(f"contact:{name}", phone, tags, source="whatsapp")
+                            value = phone if phone else str(jid)
+                            dedup_key = (name, phone if phone else str(jid))
+
+                            if dedup_key not in seen:
+                                seen[dedup_key] = {"tags": tags, "value": value}
                             else:
-                                mem.upsert(f"contact:{name}", jid, tags, source="whatsapp")
-                            total += 1
+                                # Merge tags (e.g. one record has "work", the other doesn't)
+                                for t in tags:
+                                    if t not in seen[dedup_key]["tags"]:
+                                        seen[dedup_key]["tags"].append(t)
+
                         except Exception:
                             continue
 
@@ -113,4 +153,8 @@ def ingest_indexeddb(mem: MemoryDB, profiles: list[BrowserProfile]):
                 if tmp_blob:
                     shutil.rmtree(tmp_blob.parent, ignore_errors=True)
 
-    log.info(f"  IndexedDB: {total} WhatsApp contacts")
+    # Upsert deduplicated contacts
+    for (name, _phone), entry in seen.items():
+        mem.upsert(f"contact:{name}", entry["value"], entry["tags"], source="whatsapp")
+
+    log.info(f"  IndexedDB: {len(seen)} WhatsApp contacts (deduplicated)")
