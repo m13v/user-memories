@@ -597,12 +597,14 @@ class MemoryDB:
             return vals[0][0] if vals else None
 
         def pick_multi(prefix, n=20):
-            out = {}
+            items = []
             for k, vals in by_key.items():
                 if k.startswith(prefix):
                     suffix = k[len(prefix):]
-                    out[suffix] = vals[0][0]
-            return dict(list(out.items())[:n])
+                    # vals[0] = (value, appeared_count), sorted by appeared desc
+                    items.append((suffix, vals[0][0], vals[0][1]))
+            items.sort(key=lambda x: x[2], reverse=True)
+            return {name: val for name, val, _ in items[:n]}
 
         identity = {}
         for k in PROFILE_SECTIONS["identity"]:
