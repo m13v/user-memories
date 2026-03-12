@@ -18,6 +18,22 @@ A self-ranking database of everything learned about the user from browser data. 
 
 ## How to Use
 
+### User profile (start here)
+
+Get a compact overview of the user — name, emails, addresses, accounts, tools, contacts. This is deterministic (no LLM) and computed from the database. Use it as baseline context before doing any task.
+
+```python
+import sys, os
+sys.path.insert(0, os.path.expanduser("~/user-memories"))
+from user_memories import MemoryDB
+
+mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+print(mem.profile_text())  # markdown formatted, ~1.5KB
+mem.close()
+```
+
+The profile shows: name, all known emails, phone numbers, handles, addresses, payment info, companies, top tools/services, accounts grouped by email, Notion projects, and contact count. Values are ranked by frequency across browser profiles — higher frequency = more likely to be the user's own data.
+
 ### Search by tags
 
 ```python
