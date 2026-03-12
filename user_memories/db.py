@@ -344,8 +344,11 @@ class MemoryDB:
         if ids:
             id_placeholders = ",".join("?" for _ in ids)
             self.conn.execute(
-                f"UPDATE memories SET appeared_count = appeared_count + 1, last_appeared_at = ? WHERE id IN ({id_placeholders})",
-                (now, *ids),
+                f"UPDATE memories SET appeared_count = appeared_count + 1, "
+                f"accessed_count = accessed_count + 1, "
+                f"last_appeared_at = ?, last_accessed_at = ? "
+                f"WHERE id IN ({id_placeholders})",
+                (now, now, *ids),
             )
             self.conn.commit()
 
@@ -367,6 +370,7 @@ class MemoryDB:
         if not matches:
             return self.text_search(query, limit)
 
+        now = datetime.now(timezone.utc).isoformat()
         results = []
         for mem_id, similarity in matches:
             row = self.conn.execute(
@@ -378,9 +382,23 @@ class MemoryDB:
                 continue
             results.append({
                 "id": row[0], "key": row[1], "value": row[2],
-                "source": row[3], "appeared_count": row[4],
-                "accessed_count": row[5], "similarity": similarity,
+                "source": row[3], "appeared_count": row[4] + 1,
+                "accessed_count": row[5] + 1, "similarity": similarity,
             })
+
+        # Auto-bump appeared + accessed for all returned results
+        ids = [r["id"] for r in results]
+        if ids:
+            id_placeholders = ",".join("?" for _ in ids)
+            self.conn.execute(
+                f"UPDATE memories SET appeared_count = appeared_count + 1, "
+                f"accessed_count = accessed_count + 1, "
+                f"last_appeared_at = ?, last_accessed_at = ? "
+                f"WHERE id IN ({id_placeholders})",
+                (now, now, *ids),
+            )
+            self.conn.commit()
+
         return results
 
     # ── Text Search ────────────────────────────────────────────────
@@ -404,16 +422,31 @@ class MemoryDB:
             LIMIT ?
         """, (*params, limit)).fetchall()
 
+        now = datetime.now(timezone.utc).isoformat()
         results = []
         for r in rows:
             st = f"{r[1]}: {r[2]}".lower()
             matched = sum(1 for w in words if w in st)
             results.append({
                 "id": r[0], "key": r[1], "value": r[2],
-                "source": r[3], "appeared_count": r[4], "accessed_count": r[5],
+                "source": r[3], "appeared_count": r[4] + 1, "accessed_count": r[5] + 1,
                 "hit_rate": r[6], "score": matched,
             })
         results.sort(key=lambda x: (x["score"], x["hit_rate"]), reverse=True)
+
+        # Auto-bump appeared + accessed for all returned results
+        ids = [r["id"] for r in results]
+        if ids:
+            id_placeholders = ",".join("?" for _ in ids)
+            self.conn.execute(
+                f"UPDATE memories SET appeared_count = appeared_count + 1, "
+                f"accessed_count = accessed_count + 1, "
+                f"last_appeared_at = ?, last_accessed_at = ? "
+                f"WHERE id IN ({id_placeholders})",
+                (now, now, *ids),
+            )
+            self.conn.commit()
+
         return results
 
     # ── Backfill Embeddings ────────────────────────────────────────
@@ -539,7 +572,7 @@ class MemoryDB:
     # ── Mark Accessed ──────────────────────────────────────────────
 
     def mark_accessed(self, memory_id: int):
-        """Mark a memory as actually used by the consuming agent."""
+        """Manually bump accessed_count. Kept for backward compat — search methods now auto-increment."""
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             "UPDATE memories SET accessed_count = accessed_count + 1, last_accessed_at = ? WHERE id = ?",
