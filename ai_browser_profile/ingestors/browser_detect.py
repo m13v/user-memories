@@ -79,7 +79,7 @@ def copy_db(src: Path) -> Optional[Path]:
     if not src.exists():
         return None
     try:
-        tmp = Path(tempfile.mkdtemp(prefix="user_memories_"))
+        tmp = Path(tempfile.mkdtemp(prefix="ai_browser_profile_"))
         dst = tmp / src.name
         shutil.copy2(src, dst)
         for suffix in ["-wal", "-shm"]:

@@ -7,9 +7,9 @@ import sqlite3
 import logging
 from pathlib import Path
 
-from user_memories.db import MemoryDB
-from user_memories.ingestors.browser_detect import BrowserProfile, copy_db, domain
-from user_memories.ingestors.constants import SERVICE_NAMES
+from ai_browser_profile.db import MemoryDB
+from ai_browser_profile.ingestors.browser_detect import BrowserProfile, copy_db, domain
+from ai_browser_profile.ingestors.constants import SERVICE_NAMES
 
 log = logging.getLogger(__name__)
 

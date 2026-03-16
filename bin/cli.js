@@ -6,13 +6,13 @@ const fs = require('fs');
 const os = require('os');
 const { spawnSync } = require('child_process');
 
-const DEST = path.join(os.homedir(), 'user-memories');
+const DEST = path.join(os.homedir(), 'ai-browser-profile');
 const PKG_ROOT = path.join(__dirname, '..');
 const HOME = os.homedir();
 
-// Files/dirs to copy from npm package to ~/user-memories
+// Files/dirs to copy from npm package to ~/ai-browser-profile
 const COPY_TARGETS = [
-  'user_memories',
+  'ai_browser_profile',
   'extract.py',
   'clean.py',
   'skill',
@@ -138,7 +138,7 @@ function generatePlists() {
 }
 
 function init() {
-  console.log('Setting up user-memories in', DEST);
+  console.log('Setting up ai-browser-profile in', DEST);
   fs.mkdirSync(DEST, { recursive: true });
 
   // Copy all package files
@@ -199,8 +199,8 @@ function init() {
   fs.mkdirSync(skillsDir, { recursive: true });
 
   const links = [
-    ['user-memories', 'skill'],
-    ['user-memories-setup', 'setup'],
+    ['ai-browser-profile', 'skill'],
+    ['ai-browser-profile-setup', 'setup'],
     ['memory-review', 'review'],
     ['autofill-profiles', 'autofill'],
     ['whatsapp-analysis', 'whatsapp'],
@@ -216,19 +216,19 @@ function init() {
   console.log('');
   console.log('Done! Next steps:');
   console.log(`  1. Extract browser data:  ${pythonPath()} ${path.join(DEST, 'extract.py')}`);
-  console.log('  2. Tell Claude: "search my memories for my email"');
+  console.log('  2. Tell Claude: "search my browser profile for my email"');
   console.log('');
   console.log('Optional — add semantic search (~180MB download):');
-  console.log('  npx user-memories install-embeddings');
+  console.log('  npx ai-browser-profile install-embeddings');
 }
 
 function update() {
   if (!fs.existsSync(DEST)) {
-    console.error('Not installed. Run: npx user-memories init');
+    console.error('Not installed. Run: npx ai-browser-profile init');
     process.exit(1);
   }
 
-  console.log('Updating user-memories...');
+  console.log('Updating ai-browser-profile...');
 
   for (const f of COPY_TARGETS) {
     if (NEVER_OVERWRITE.has(f)) {
@@ -253,8 +253,8 @@ function update() {
   // Re-symlink skills
   const skillsDir = path.join(HOME, '.claude', 'skills');
   const links = [
-    ['user-memories', 'skill'],
-    ['user-memories-setup', 'setup'],
+    ['ai-browser-profile', 'skill'],
+    ['ai-browser-profile-setup', 'setup'],
     ['memory-review', 'review'],
     ['autofill-profiles', 'autofill'],
     ['whatsapp-analysis', 'whatsapp'],
@@ -278,7 +278,7 @@ function update() {
 function installEmbeddings() {
   const venvPath = path.join(DEST, '.venv');
   if (!fs.existsSync(venvPath)) {
-    console.error('Not installed. Run: npx user-memories init');
+    console.error('Not installed. Run: npx ai-browser-profile init');
     process.exit(1);
   }
 
@@ -295,7 +295,7 @@ function installEmbeddings() {
   console.log('The model (~131MB) will download automatically on first semantic search.');
   console.log('');
   console.log('To backfill embeddings for existing memories:');
-  console.log(`  ${pythonPath()} -c "from user_memories import MemoryDB; m = MemoryDB('${path.join(DEST, 'memories.db')}'); print(f'Embedded {m.backfill_embeddings()} memories'); m.close()"`);
+  console.log(`  ${pythonPath()} -c "from ai_browser_profile import MemoryDB; m = MemoryDB('${path.join(DEST, 'memories.db')}'); print(f'Embedded {m.backfill_embeddings()} memories'); m.close()"`);
 }
 
 const cmd = process.argv[2];
@@ -306,10 +306,10 @@ if (cmd === 'init') {
 } else if (cmd === 'install-embeddings') {
   installEmbeddings();
 } else {
-  console.log('user-memories — extract user knowledge from browser data');
+  console.log('ai-browser-profile — extract user identity from browser data');
   console.log('');
   console.log('Usage:');
-  console.log('  npx user-memories init                first-time setup');
-  console.log('  npx user-memories update              update code, preserve data');
-  console.log('  npx user-memories install-embeddings  add semantic search (~180MB)');
+  console.log('  npx ai-browser-profile init                first-time setup');
+  console.log('  npx ai-browser-profile update              update code, preserve data');
+  console.log('  npx ai-browser-profile install-embeddings  add semantic search (~180MB)');
 }

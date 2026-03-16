@@ -1,9 +1,9 @@
 ---
-name: user-memories
-description: "Query accumulated user memories (identity, contacts, accounts, addresses, payment, preferences) extracted from browser data. Use when you need context about the user to help with any task: form filling, emailing, booking, payments, or any task where knowing the user's info helps."
+name: ai-browser-profile
+description: "Query the user's AI browser profile: identity, accounts, tools, contacts, addresses, payments extracted from browser data. Use when you need context about the user to help with any task: form filling, emailing, booking, payments, or any task where knowing the user's info helps."
 ---
 
-# User Memories
+# AI Browser Profile
 
 A self-ranking database of everything learned about the user from browser data. Memories are ranked by how often they're accessed vs how often they appear in search results — frequently useful memories rise, noise sinks.
 
@@ -11,10 +11,10 @@ A self-ranking database of everything learned about the user from browser data. 
 
 | Item | Value |
 |------|-------|
-| Database | `~/user-memories/memories.db` |
-| Module | `~/user-memories/user_memories/` |
-| Python | `~/user-memories/.venv/bin/python` |
-| Rebuild | `~/user-memories/.venv/bin/python ~/user-memories/extract.py` |
+| Database | `~/ai-browser-profile/memories.db` |
+| Module | `~/ai-browser-profile/ai_browser_profile/` |
+| Python | `~/ai-browser-profile/.venv/bin/python` |
+| Rebuild | `~/ai-browser-profile/.venv/bin/python ~/ai-browser-profile/extract.py` |
 
 ## How to Use
 
@@ -24,10 +24,10 @@ Get a compact overview of the user — name, emails, addresses, accounts, tools,
 
 ```python
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/user-memories"))
-from user_memories import MemoryDB
+sys.path.insert(0, os.path.expanduser("~/ai-browser-profile"))
+from ai_browser_profile import MemoryDB
 
-mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+mem = MemoryDB(os.path.expanduser("~/ai-browser-profile/memories.db"))
 print(mem.profile_text())  # markdown formatted, ~1.5KB
 mem.close()
 ```
@@ -38,10 +38,10 @@ The profile shows: name, all known emails, phone numbers, handles, addresses, pa
 
 ```python
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/user-memories"))
-from user_memories import MemoryDB
+sys.path.insert(0, os.path.expanduser("~/ai-browser-profile"))
+from ai_browser_profile import MemoryDB
 
-mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+mem = MemoryDB(os.path.expanduser("~/ai-browser-profile/memories.db"))
 
 # Search returns results ranked by hit_rate (accessed/appeared), then counts
 # accessed_count and appeared_count are auto-incremented on every search call
@@ -61,13 +61,13 @@ for r in results[:5]:
     print(f'{r["key"]}: {r["value"][:80]} (sim={r["similarity"]:.3f})')
 
 # Falls back to text_search() if embeddings not installed
-# Install with: npx user-memories install-embeddings
+# Install with: npx ai-browser-profile install-embeddings
 ```
 
 ### Quick SQL queries
 
 ```bash
-sqlite3 ~/user-memories/memories.db
+sqlite3 ~/ai-browser-profile/memories.db
 ```
 
 ```sql
@@ -146,7 +146,7 @@ On `upsert()`, near-duplicate memories (cosine similarity >= 0.92 with same key 
 To refresh from latest browser data:
 
 ```bash
-cd ~/user-memories
+cd ~/ai-browser-profile
 source .venv/bin/activate
 python extract.py                                    # full scan
 python extract.py --browsers arc chrome              # specific browsers
@@ -157,9 +157,9 @@ python extract.py --no-indexeddb --no-localstorage   # fast, skip LevelDB
 
 ```python
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/user-memories"))
-from user_memories import MemoryDB
-mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+sys.path.insert(0, os.path.expanduser("~/ai-browser-profile"))
+from ai_browser_profile import MemoryDB
+mem = MemoryDB(os.path.expanduser("~/ai-browser-profile/memories.db"))
 n = mem.backfill_embeddings()
 print(f"Embedded {n} memories")
 mem.close()
@@ -169,11 +169,11 @@ This reads browser files directly (History, Login Data, Web Data, IndexedDB, Loc
 
 ## Dependencies
 
-**Core** (installed by `npx user-memories init`):
+**Core** (installed by `npx ai-browser-profile init`):
 - `ccl_chromium_reader` — IndexedDB + Local Storage LevelDB files
 - `numpy` — vector math for cosine similarity
 
-**Embeddings** (optional, installed by `npx user-memories install-embeddings`):
+**Embeddings** (optional, installed by `npx ai-browser-profile install-embeddings`):
 - `onnxruntime` — ONNX model inference
 - `huggingface_hub` — model downloading
 - `tokenizers` — text tokenization

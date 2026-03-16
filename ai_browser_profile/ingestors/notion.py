@@ -16,7 +16,7 @@ from collections import deque
 from pathlib import Path
 from typing import Optional
 
-from user_memories.db import MemoryDB
+from ai_browser_profile.db import MemoryDB
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def _copy_notion_db() -> Optional[Path]:
     """Copy notion.db + WAL/SHM to temp dir (same pattern as copy_db)."""
     if not NOTION_DB.exists():
         return None
-    tmp = Path(tempfile.mkdtemp(prefix="user_memories_notion_"))
+    tmp = Path(tempfile.mkdtemp(prefix="ai_browser_profile_notion_"))
     dst = tmp / NOTION_DB.name
     shutil.copy2(NOTION_DB, dst)
     for suffix in ["-wal", "-shm"]:

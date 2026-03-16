@@ -1,4 +1,4 @@
-# user-memories
+# ai-browser-profile
 
 Extract what your browser knows about you into a self-ranking SQLite database. Reads autofill, login data, browsing history, bookmarks, WhatsApp contacts, LinkedIn connections, and Notion workspaces — directly from local browser files.
 
@@ -19,18 +19,18 @@ Supported browsers: Arc, Chrome, Brave, Edge, Safari, Firefox.
 ## Install
 
 ```bash
-npx user-memories init                               # sets up ~/user-memories, Python venv, core deps
-npx user-memories install-embeddings                  # optional: semantic search (~180MB)
+npx ai-browser-profile init                               # sets up ~/ai-browser-profile, Python venv, core deps
+npx ai-browser-profile install-embeddings                  # optional: semantic search (~180MB)
 ```
 
 Requires Python 3.10+ and Node.js 16+. macOS only (reads from `~/Library/Application Support/`).
 
-This creates `~/user-memories/` with a Python venv, installs dependencies, and symlinks Claude Code skills to `~/.claude/skills/`.
+This creates `~/ai-browser-profile/` with a Python venv, installs dependencies, and symlinks Claude Code skills to `~/.claude/skills/`.
 
 ## Usage
 
 ```bash
-cd ~/user-memories && source .venv/bin/activate
+cd ~/ai-browser-profile && source .venv/bin/activate
 python extract.py                                    # scan all browsers
 python extract.py --browsers arc chrome              # specific browsers
 python extract.py --no-indexeddb --no-localstorage   # skip LevelDB (faster)
@@ -40,13 +40,13 @@ python extract.py --output /path/to/memories.db      # custom output path
 To update after a new release:
 
 ```bash
-npx user-memories update                             # updates code, preserves memories.db
+npx ai-browser-profile update                             # updates code, preserves memories.db
 ```
 
 ## Python API
 
 ```python
-from user_memories import MemoryDB, extract_memories
+from ai_browser_profile import MemoryDB, extract_memories
 
 # Extract from browsers
 mem = extract_memories("memories.db")
@@ -95,7 +95,7 @@ memory_embeddings (memory_id, embedding)  -- 768-dim BLOB
 
 ```
 extract.py                          # CLI entry point
-user_memories/
+ai_browser_profile/
   __init__.py                       # exports MemoryDB, extract_memories
   db.py                             # MemoryDB: schema, upsert, search, profile
   embeddings.py                     # ONNX Runtime embeddings + cosine search

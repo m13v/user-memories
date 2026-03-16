@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""CLI entry point for user-memories extraction."""
+"""CLI entry point for ai-browser-profile extraction."""
 
 import argparse
 import logging
 
-from user_memories import extract_memories
+from ai_browser_profile import extract_memories
 from clean import run_cleanup
 
 logging.basicConfig(

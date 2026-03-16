@@ -1,13 +1,13 @@
 {
-  "name": "user-memories",
-  "version": "1.0.4",
-  "description": "Extract user knowledge (identity, contacts, accounts, addresses, payments) from browser data into a self-ranking SQLite database. Install as a Claude Code agent skill.",
+  "name": "ai-browser-profile",
+  "version": "1.0.5",
+  "description": "Extract user identity (name, emails, accounts, addresses, payments) from browser data into a self-ranking SQLite database. Install as a Claude Code agent skill.",
   "bin": {
-    "user-memories": "bin/cli.js"
+    "ai-browser-profile": "bin/cli.js"
   },
   "files": [
     "bin/",
-    "user_memories/**/*.py",
+    "ai_browser_profile/**/*.py",
     "skill/",
     "review/",
     "setup/",
@@ -18,7 +18,7 @@
   ],
   "keywords": [
     "browser-data",
-    "memory",
+    "browser-profile",
     "identity",
     "claude",
     "claude-code",
@@ -31,9 +31,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/m13v/user-memories.git"
+    "url": "git+https://github.com/m13v/ai-browser-profile.git"
   },
-  "homepage": "https://github.com/m13v/user-memories",
+  "homepage": "https://github.com/m13v/ai-browser-profile",
   "engines": {
     "node": ">=16"
   }

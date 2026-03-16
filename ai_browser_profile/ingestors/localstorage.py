@@ -6,8 +6,8 @@ import tempfile
 import logging
 from pathlib import Path
 
-from user_memories.db import MemoryDB
-from user_memories.ingestors.browser_detect import BrowserProfile
+from ai_browser_profile.db import MemoryDB
+from ai_browser_profile.ingestors.browser_detect import BrowserProfile
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def ingest_localstorage(mem: MemoryDB, profiles: list[BrowserProfile]):
         if not ls_dir.exists():
             continue
 
-        tmp = Path(tempfile.mkdtemp(prefix="user_memories_ls_"))
+        tmp = Path(tempfile.mkdtemp(prefix="ai_browser_profile_ls_"))
         tmp_ls = tmp / "leveldb"
         try:
             shutil.copytree(ls_dir, tmp_ls)

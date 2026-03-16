@@ -11,10 +11,10 @@ LLM-powered post-ingestion review of the user memories database. Processes unrev
 
 ```python
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/user-memories"))
-from user_memories import MemoryDB
+sys.path.insert(0, os.path.expanduser("~/ai-browser-profile"))
+from ai_browser_profile import MemoryDB
 
-mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+mem = MemoryDB(os.path.expanduser("~/ai-browser-profile/memories.db"))
 ```
 
 ## Workflow

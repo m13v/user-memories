@@ -7,8 +7,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from user_memories.db import MemoryDB
-from user_memories.ingestors.constants import (
+from ai_browser_profile.db import MemoryDB
+from ai_browser_profile.ingestors.constants import (
     ADDRESS_TYPE_MAP, AUTOFILL_FIELD_MAP, BROWSER_PATHS,
     clean_field_name, is_noise_field, infer_tags,
 )
@@ -20,7 +20,7 @@ def _copy_db(src: Path) -> Optional[Path]:
     """Copy a SQLite DB to temp dir to avoid browser locks."""
     if not src.exists():
         return None
-    tmp = Path(tempfile.mkdtemp(prefix="user_memories_"))
+    tmp = Path(tempfile.mkdtemp(prefix="ai_browser_profile_"))
     dst = tmp / src.name
     shutil.copy2(src, dst)
     for suffix in ["-wal", "-shm"]:

@@ -4,8 +4,8 @@ import shutil
 import sqlite3
 import logging
 
-from user_memories.db import MemoryDB
-from user_memories.ingestors.browser_detect import BrowserProfile, copy_db, domain
+from ai_browser_profile.db import MemoryDB
+from ai_browser_profile.ingestors.browser_detect import BrowserProfile, copy_db, domain
 
 log = logging.getLogger(__name__)
 

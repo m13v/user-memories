@@ -1,15 +1,15 @@
 ---
-name: user-memories-setup
-description: "Set up user-memories for a new user. Installs via npm, creates Python venv, extracts browser data, and optionally enables semantic search. Use when: 'set up user memories', 'install user memories', 'configure user memories'."
+name: ai-browser-profile-setup
+description: "Set up ai-browser-profile for a new user. Installs via npm, creates Python venv, extracts browser data, and optionally enables semantic search. Use when: 'set up browser profile', 'install ai browser profile', 'configure browser profile'."
 ---
 
-# User Memories Setup
+# AI Browser Profile Setup
 
-Interactive setup wizard for user-memories. Walk the user through installation and first extraction.
+Interactive setup wizard for ai-browser-profile. Walk the user through installation and first extraction.
 
 ## When to use
 
-- First-time setup of user-memories
+- First-time setup of ai-browser-profile
 - Reinstalling after a fresh machine setup
 - Troubleshooting a broken installation
 
@@ -36,34 +36,34 @@ Run each step sequentially. **After each step, print a progress status to the us
 Check if already installed:
 
 ```bash
-ls ~/user-memories/extract.py 2>/dev/null && echo "FOUND" || echo "NOT_FOUND"
+ls ~/ai-browser-profile/extract.py 2>/dev/null && echo "FOUND" || echo "NOT_FOUND"
 ```
 
 If NOT_FOUND, install:
 ```bash
-npx user-memories init
+npx ai-browser-profile init
 ```
 
 This:
-- Copies Python source + skills to `~/user-memories/`
-- Creates a Python venv at `~/user-memories/.venv/`
+- Copies Python source + skills to `~/ai-browser-profile/`
+- Creates a Python venv at `~/ai-browser-profile/.venv/`
 - Installs core deps (`ccl_chromium_reader`, `numpy`)
 - Symlinks skills into `~/.claude/skills/`
 
 To update code later without touching data:
 ```bash
-npx user-memories update
+npx ai-browser-profile update
 ```
 
-**Tell the user:** "Installed user-memories to ~/user-memories. Python venv created, core deps installed, skills symlinked."
+**Tell the user:** "Installed ai-browser-profile to ~/ai-browser-profile. Python venv created, core deps installed, skills symlinked."
 
 ### Step 2: Verify the installation
 
 ```bash
-~/user-memories/.venv/bin/python -c "
+~/ai-browser-profile/.venv/bin/python -c "
 import sys
-sys.path.insert(0, '$HOME/user-memories')
-from user_memories import MemoryDB
+sys.path.insert(0, '$HOME/ai-browser-profile')
+from ai_browser_profile import MemoryDB
 print('MemoryDB imported successfully')
 "
 ```
@@ -71,8 +71,8 @@ print('MemoryDB imported successfully')
 Expected: `MemoryDB imported successfully`
 
 If it fails, check:
-- Python venv exists: `ls ~/user-memories/.venv/bin/python`
-- Deps installed: `~/user-memories/.venv/bin/pip list | grep ccl`
+- Python venv exists: `ls ~/ai-browser-profile/.venv/bin/python`
+- Deps installed: `~/ai-browser-profile/.venv/bin/pip list | grep ccl`
 
 **Tell the user:** "Python environment verified - MemoryDB loads correctly."
 
@@ -81,7 +81,7 @@ If it fails, check:
 **IMPORTANT:** Run extraction in the background so you can report progress to the user. The extraction has 8 stages and logs timing for each.
 
 ```bash
-cd ~/user-memories && source .venv/bin/activate && python extract.py 2>&1
+cd ~/ai-browser-profile && source .venv/bin/activate && python extract.py 2>&1
 ```
 
 This scans all detected browsers (Arc, Chrome, Brave, Edge, Safari, Firefox) and extracts:
@@ -128,11 +128,11 @@ Extraction complete:
 ### Step 4: Verify extraction
 
 ```bash
-~/user-memories/.venv/bin/python -c "
+~/ai-browser-profile/.venv/bin/python -c "
 import sys, os
-sys.path.insert(0, os.path.expanduser('~/user-memories'))
-from user_memories import MemoryDB
-mem = MemoryDB(os.path.expanduser('~/user-memories/memories.db'))
+sys.path.insert(0, os.path.expanduser('~/ai-browser-profile'))
+from ai_browser_profile import MemoryDB
+mem = MemoryDB(os.path.expanduser('~/ai-browser-profile/memories.db'))
 stats = mem.stats()
 print(f'Total memories: {stats[\"total_memories\"]}')
 print()
@@ -149,7 +149,7 @@ Ask: "Do you want weekly automatic extraction + review? (y/n)"
 
 If yes (macOS):
 ```bash
-ln -sf ~/user-memories/launchd/com.m13v.memory-review.plist ~/Library/LaunchAgents/
+ln -sf ~/ai-browser-profile/launchd/com.m13v.memory-review.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.m13v.memory-review.plist
 ```
 
@@ -162,16 +162,16 @@ Print a final status card:
 ```
 Setup Complete
 
-  Location:     ~/user-memories
-  Database:     ~/user-memories/memories.db
-  Python:       ~/user-memories/.venv/bin/python
-  Skills:       ~/.claude/skills/user-memories (+ 4 more)
+  Location:     ~/ai-browser-profile
+  Database:     ~/ai-browser-profile/memories.db
+  Python:       ~/ai-browser-profile/.venv/bin/python
+  Skills:       ~/.claude/skills/ai-browser-profile (+ 4 more)
 
   Memories:     5,431
   Embeddings:   5,431 vectors (semantic search enabled)
   Automation:   launchd weekly / not set up
 
   Try it:       Tell Claude "what's my email address"
-  Update:       npx user-memories update
+  Update:       npx ai-browser-profile update
   Review:       /memory-review (Claude-powered cleanup)
 ```

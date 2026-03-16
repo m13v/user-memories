@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 log = logging.getLogger("clean")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from user_memories import MemoryDB
+from ai_browser_profile import MemoryDB
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memories.db")
 

@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
 
-from user_memories.db import MemoryDB
+from ai_browser_profile.db import MemoryDB
 
 log = logging.getLogger(__name__)
 

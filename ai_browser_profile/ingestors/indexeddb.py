@@ -6,15 +6,15 @@ import tempfile
 import logging
 from pathlib import Path
 
-from user_memories.db import MemoryDB
-from user_memories.ingestors.browser_detect import BrowserProfile
+from ai_browser_profile.db import MemoryDB
+from ai_browser_profile.ingestors.browser_detect import BrowserProfile
 
 log = logging.getLogger(__name__)
 
 
 def _copy_dir(src: Path) -> Path:
     """Copy a directory to temp to avoid browser locks."""
-    tmp = Path(tempfile.mkdtemp(prefix="user_memories_idb_"))
+    tmp = Path(tempfile.mkdtemp(prefix="ai_browser_profile_idb_"))
     dst = tmp / src.name
     shutil.copytree(src, dst)
     return dst

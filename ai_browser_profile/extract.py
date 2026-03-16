@@ -4,13 +4,13 @@ import logging
 import time
 from typing import Optional, Set
 
-from user_memories.db import MemoryDB
-from user_memories.embeddings import setup_embeddings_table
-from user_memories.ingestors.browser_detect import detect_browsers
-from user_memories.ingestors.webdata import ingest_webdata
-from user_memories.ingestors.history import ingest_history
-from user_memories.ingestors.logins import ingest_logins
-from user_memories.ingestors.bookmarks import ingest_bookmarks
+from ai_browser_profile.db import MemoryDB
+from ai_browser_profile.embeddings import setup_embeddings_table
+from ai_browser_profile.ingestors.browser_detect import detect_browsers
+from ai_browser_profile.ingestors.webdata import ingest_webdata
+from ai_browser_profile.ingestors.history import ingest_history
+from ai_browser_profile.ingestors.logins import ingest_logins
+from ai_browser_profile.ingestors.bookmarks import ingest_bookmarks
 
 log = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def extract_memories(memories_db_path: str = "memories.db",
     # 5. LinkedIn — connections from Local Storage
     if not skip_localstorage:
         try:
-            from user_memories.ingestors.localstorage import ingest_localstorage
+            from ai_browser_profile.ingestors.localstorage import ingest_localstorage
             _timed("LinkedIn", ingest_localstorage, mem, profiles)
         except ImportError:
             log.warning("ccl_chromium_reader not installed — skipping LinkedIn")
@@ -66,7 +66,7 @@ def extract_memories(memories_db_path: str = "memories.db",
     # 6. Notion — workspace contacts, pages, meetings
     if not skip_notion:
         try:
-            from user_memories.ingestors.notion import ingest_notion
+            from ai_browser_profile.ingestors.notion import ingest_notion
             _timed("Notion", ingest_notion, mem)
         except Exception as e:
             log.warning(f"Notion ingestor failed: {e}")
@@ -85,7 +85,7 @@ def extract_memories(memories_db_path: str = "memories.db",
     # 7. WhatsApp — contacts from IndexedDB (slow, runs last)
     if not skip_indexeddb:
         try:
-            from user_memories.ingestors.indexeddb import ingest_indexeddb
+            from ai_browser_profile.ingestors.indexeddb import ingest_indexeddb
             _timed("WhatsApp", ingest_indexeddb, mem, profiles)
         except ImportError:
             log.warning("ccl_chromium_reader not installed — skipping WhatsApp")

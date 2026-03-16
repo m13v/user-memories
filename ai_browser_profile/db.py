@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
 
-from user_memories.embeddings import (
+from ai_browser_profile.embeddings import (
     embed_text, embed_batch, setup_embeddings_table, store_embedding, cosine_search,
     is_available as embeddings_available,
 )

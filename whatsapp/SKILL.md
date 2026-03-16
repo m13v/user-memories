@@ -205,11 +205,11 @@ Re-run Step 4 to collect newly decrypted messages.
 
 ```python
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/user-memories"))
-from user_memories import MemoryDB
-from user_memories.ingestors.messages import ingest_messages, message_stats
+sys.path.insert(0, os.path.expanduser("~/ai-browser-profile"))
+from ai_browser_profile import MemoryDB
+from ai_browser_profile.ingestors.messages import ingest_messages, message_stats
 
-mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+mem = MemoryDB(os.path.expanduser("~/ai-browser-profile/memories.db"))
 
 # messages = the parsed messages list from Step 4
 inserted = ingest_messages(mem, messages)
@@ -224,9 +224,9 @@ mem.close()
 ### Step 7: Analyze messages and write relationship memories
 
 ```python
-from user_memories.ingestors.messages import get_messages
+from ai_browser_profile.ingestors.messages import get_messages
 
-mem = MemoryDB(os.path.expanduser("~/user-memories/memories.db"))
+mem = MemoryDB(os.path.expanduser("~/ai-browser-profile/memories.db"))
 
 all_msgs = get_messages(mem, limit=1000)
 
@@ -247,7 +247,7 @@ mem.close()
 Run the memory extraction first to populate contacts in `memories.db`:
 
 ```bash
-cd ~/user-memories
+cd ~/ai-browser-profile
 source .venv/bin/activate
 python extract.py
 ```
