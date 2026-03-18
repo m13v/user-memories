@@ -1,6 +1,8 @@
 *.db
 *.db-shm
 *.db-wal
+*.bak
+*.bak[0-9]*
 .venv/
 __pycache__/
 *.pyc
