@@ -1,0 +1,144 @@
+# AI Browser Profile
+
+> Extract what your browser knows about you into a self-ranking SQLite database.
+
+AI Browser Profile reads local browser files (autofill, login data, browsing history, bookmarks, WhatsApp contacts, LinkedIn connections, Notion workspaces) and consolidates them into a single structured SQLite database. The result is a portable personal knowledge base that AI agents, scripts, or applications can query for user context.
+
+- **Repository:** https://github.com/m13v/ai-browser-profile
+- **npm package:** `ai-browser-profile` (v1.0.5)
+- **License:** MIT
+- **Platform:** macOS only (reads from `~/Library/Application Support/`)
+- **Requirements:** Python 3.10+, Node.js 16+
+
+## Who It Is For
+
+Developers and power users who want to give AI agents (Claude Code, LLM assistants, automation tools) access to personal context without manual data entry. Also useful as a personal knowledge base for searching across accounts, contacts, and browsing patterns.
+
+## Data Sources
+
+| Source | What It Extracts | Browser Files Used |
+|--------|------------------|--------------------|
+| Web Data | Autofill entries, saved addresses, credit cards | `Web Data` SQLite |
+| Login Data | Accounts, emails, usernames per site | `Login Data` SQLite |
+| History | Tool and service usage frequency | `History` SQLite |
+| Bookmarks | Interests, saved tools and links | `Bookmarks` JSON |
+| IndexedDB | WhatsApp contacts | LevelDB via `ccl_chromium_reader` |
+| Local Storage | LinkedIn connections | LevelDB via `ccl_chromium_reader` |
+| Notion | Workspace users, pages, meetings | IndexedDB |
+
+Supported browsers: Arc, Chrome, Brave, Edge, Safari, Firefox. The tool auto-detects installed browsers and scans all profiles (Default, Profile 1, etc.).
+
+## Output: SQLite Database
+
+The output is a single `memories.db` file with four tables:
+
+**memories** stores every extracted fact as a key/value pair with metadata:
+- `key`: structured identifier (e.g., `email`, `account:github.com`, `tool:vscode`, `first_name`)
+- `value`: the extracted value
+- `confidence`: always 1.0 in the current schema
+- `source`: which browser/profile the data came from
+- `appeared_count`: how many times this fact was seen across extractions
+- `accessed_count`: how many times this fact was queried
+- `superseded_by` / `superseded_at`: tracks when a value was replaced by a newer one
+- `search_text`: pre-computed `key: value` string for full-text search
+
+**memory_tags** assigns one or more tags to each memory. The canonical tag set is: `identity`, `contact_info`, `address`, `payment`, `account`, `tool`, `contact`, `work`, `knowledge`, `communication`, `social`, `finance`.
+
+**memory_links** connects related memories (e.g., accounts sharing the same username are linked via `same_identity` relations).
+
+**memory_embeddings** stores 768-dimensional vectors for optional semantic search.
+
+## Self-Ranking System
+
+Each memory tracks two counters: `appeared_count` (incremented each time the fact is seen during extraction) and `accessed_count` (incremented each time the fact is returned by a query). The ratio `accessed_count / appeared_count` produces a `hit_rate` that surfaces the most relevant memories first.
+
+Keys follow a cardinality schema:
+- **Single-value keys** (`first_name`, `last_name`, `full_name`, `date_of_birth`, `gender`, `job_title`): new values automatically supersede old ones
+- **Multi-value keys** (`email`, `phone`, `account:*`, `tool:*`, `contact:*`, `bookmark:*`): multiple values coexist
+
+## Semantic Deduplication
+
+When the optional embedding model is installed, new entries are compared against existing ones using nomic-embed-text-v1.5 (768-dim, ONNX Runtime). If cosine similarity >= 0.92 with the same key prefix, the old entry is superseded rather than duplicated. This prevents near-duplicate memories from accumulating across repeated extractions.
+
+## Installation
+
+```bash
+npx ai-browser-profile init                    # sets up ~/ai-browser-profile, Python venv, core deps
+npx ai-browser-profile install-embeddings      # optional: semantic search (~180MB model download)
+```
+
+Core dependencies: `numpy`, `ccl_chromium_reader` (for IndexedDB/LocalStorage parsing).
+Embedding dependencies (optional): `onnxruntime`, `huggingface_hub`, `tokenizers`.
+
+## Usage
+
+### Command Line
+
+```bash
+cd ~/ai-browser-profile && source .venv/bin/activate
+python extract.py                                    # scan all browsers
+python extract.py --browsers arc chrome              # specific browsers only
+python extract.py --no-indexeddb --no-localstorage   # skip LevelDB sources (faster)
+python extract.py --output /path/to/memories.db      # custom output path
+```
+
+### Python API
+
+```python
+from ai_browser_profile import MemoryDB, extract_memories
+
+mem = extract_memories("memories.db")
+
+# Tag-based search
+mem.search(tags=["identity", "contact_info"])
+
+# Full-text search
+mem.text_search("github")
+
+# Semantic search (requires embeddings)
+mem.semantic_search("what tools do I use most")
+
+# Generate a structured profile summary
+print(mem.profile_text())
+
+# View history and supersession chain for a key
+mem.history("email")
+```
+
+### Updating
+
+```bash
+npx ai-browser-profile update    # updates code, preserves memories.db
+```
+
+## Privacy Considerations
+
+All data stays local. The tool reads browser SQLite files and LevelDB stores directly from disk. No data is sent to any server. The only network call is the optional one-time download of the embedding model from Hugging Face (~180MB).
+
+Credit card numbers are extracted from the browser's autofill database (the same data Chrome shows in Settings > Payment Methods). The database file (`memories.db`) should be treated as sensitive and not shared or committed to version control.
+
+Browser files are copied to temp directories before reading, so the tool never modifies original browser data.
+
+## Project Structure
+
+```
+extract.py                          # CLI entry point
+clean.py                            # Post-extraction cleanup
+bin/cli.js                          # npm CLI (init, update, install-embeddings)
+ai_browser_profile/
+  __init__.py                       # exports MemoryDB, extract_memories
+  db.py                             # MemoryDB: schema, upsert, search, profile
+  embeddings.py                     # ONNX Runtime embeddings + cosine search
+  extract.py                        # extraction orchestrator
+  ingestors/
+    browser_detect.py               # find browser profiles on disk
+    constants.py                    # lookup maps, browser paths, field normalization
+    webdata.py                      # autofill, addresses, credit cards
+    history.py                      # browsing history to tool usage
+    logins.py                       # saved logins to accounts
+    bookmarks.py                    # bookmarks to interests
+    indexeddb.py                    # WhatsApp contacts
+    localstorage.py                 # LinkedIn connections
+    notion.py                       # Notion workspace data
+    messages.py                     # message extraction
+```
