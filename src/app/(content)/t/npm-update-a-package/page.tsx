@@ -562,6 +562,9 @@ export default function Page() {
             rightLabel="npx ai-browser-profile update"
             leftCode={BEFORE_AFTER_CODE_LEFT}
             rightCode={BEFORE_AFTER_CODE_RIGHT}
+            leftLines={BEFORE_AFTER_CODE_LEFT.split("\n").length}
+            rightLines={BEFORE_AFTER_CODE_RIGHT.split("\n").length}
+            reductionSuffix="fewer assumptions"
           />
         </section>
 
