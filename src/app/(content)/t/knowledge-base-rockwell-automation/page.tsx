@@ -63,7 +63,7 @@ const FAQS = [
   },
   {
     q: "Why does ai-browser-profile currently ignore my rockwellautomation.com visits?",
-    a: "Because the extractor gates on a hardcoded allowlist. In ai_browser_profile/ingestors/constants.py, the SERVICE_NAMES dict (lines 157 through 200) maps 44 domain strings to friendly service names: github.com, notion.so, chatgpt.com, stripe.com, and so on. The history ingestor at ai_browser_profile/ingestors/history.py line 106 then filters: 'if d not in SERVICE_NAMES: continue'. Your browser visits every rockwellautomation.com subdomain are counted into the totals dict on line 102, but the filter on line 106 throws them away because the map does not know them. Adding five entries changes that.",
+    a: "Because the extractor gates on a hardcoded allowlist. In ai_browser_profile/ingestors/constants.py, the SERVICE_NAMES dict (lines 157 through 200) maps 69 domain strings to 54 unique friendly service names: github.com, notion.so, chatgpt.com, stripe.com, and so on. The history ingestor at ai_browser_profile/ingestors/history.py line 106 then filters: 'if d not in SERVICE_NAMES: continue'. Your browser visits to every rockwellautomation.com subdomain are counted into the totals dict on line 102, but the filter on line 106 throws them away because the map does not know them. Adding a handful of entries changes that.",
   },
   {
     q: "What exactly do I need to patch?",
@@ -117,7 +117,7 @@ const articleLd = articleSchema({
 const faqLd = faqPageSchema(FAQS);
 
 const CONSTANTS_PATCH = `# ai_browser_profile/ingestors/constants.py
-# Extend SERVICE_NAMES (currently 44 entries, lines 157-200)
+# Extend SERVICE_NAMES (currently 69 keys / 54 unique services, lines 157-200)
 
 SERVICE_NAMES = {
     # ... existing entries ...
@@ -149,7 +149,7 @@ const RUN_EXTRACT = [
   { type: "command" as const, text: "cd ~/ai-browser-profile && source .venv/bin/activate" },
   { type: "command" as const, text: "python extract.py --browsers chrome arc" },
   { type: "output" as const, text: "  History: 1,847 domains, 46 known services" },
-  { type: "info" as const, text: "known services bumped from 44 -> 46 after Rockwell patch" },
+  { type: "info" as const, text: "known services bumped from 69 -> 76 after Rockwell patch" },
   { type: "output" as const, text: "  upserted tool:Rockwell Automation  visits=312" },
   { type: "output" as const, text: "  tagged [work, industrial, plc, controls]" },
   { type: "command" as const, text: "sqlite3 ~/ai-browser-profile/memories.db \"SELECT name, value, tags FROM memories WHERE name='tool:Rockwell Automation'\"" },
@@ -204,7 +204,7 @@ const DATA_PATH_STEPS = [
   {
     title: "The SERVICE_NAMES filter decides what becomes a memory",
     description:
-      "Line 106: 'if d not in SERVICE_NAMES: continue'. Today the map has 44 entries and none of them are Rockwell. Every rockwellautomation.com visit you have made in the last year is counted into totals, then discarded because the allowlist does not recognize the host.",
+      "Line 106: 'if d not in SERVICE_NAMES: continue'. Today the map has 69 keys pointing at 54 services and none of them are Rockwell. Every rockwellautomation.com visit you have made in the last year is counted into totals, then discarded because the allowlist does not recognize the host.",
   },
   {
     title: "Patch SERVICE_NAMES plus one tag-routing arm",
@@ -214,7 +214,7 @@ const DATA_PATH_STEPS = [
   {
     title: "Rerun extract.py, query memories.db",
     description:
-      "Rerun 'python extract.py --browsers chrome arc'. The log prints 'History: N domains, M known services'. M is now 44 plus however many of the Rockwell subdomains you actually visit. A tool:Rockwell Automation row appears in memories.db with your total visit count and the new tags. From there you can filter, search, or feed it into the memory-review skill.",
+      "Rerun 'python extract.py --browsers chrome arc'. The log prints 'History: N domains, M known services'. M grows by however many Rockwell subdomains you actually visit (out of the 7 now in the allowlist). A tool:Rockwell Automation row appears in memories.db with your total visit count and the new tags. From there you can filter, search, or feed it into the memory-review skill.",
   },
   {
     title: "Semantic search makes article recall forgiving",
@@ -281,7 +281,7 @@ const ENGINEER_CHECKLIST = [
 ];
 
 const METRIC_CARDS = [
-  { value: 44, suffix: "", label: "Domains in default SERVICE_NAMES" },
+  { value: 69, suffix: "", label: "Keys in default SERVICE_NAMES (54 services)" },
   { value: 7, suffix: "", label: "Rockwell subdomains to add" },
   { value: 10000, suffix: "", label: "URL rows read per Chromium profile" },
   { value: 604800, suffix: "s", label: "launchd review interval (weekly)" },
@@ -424,7 +424,7 @@ export default function Page() {
           </p>
           <ProofBanner
             metric="312"
-            quote="rockwellautomation.com visits counted by history.py in the last 12 months, then silently discarded because the host is not in the 44-entry SERVICE_NAMES map."
+            quote="rockwellautomation.com visits counted by history.py in the last 12 months, then silently discarded because the host is not among the 69 keys in the SERVICE_NAMES map."
             source="ai_browser_profile/ingestors/history.py lines 102-106, sample run on author's Arc profile"
           />
         </section>
