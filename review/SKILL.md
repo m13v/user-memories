@@ -1,6 +1,6 @@
 ---
 name: memory-review
-description: "Review and clean unreviewed memories in the database. Removes junk, merges duplicates, fixes miskeyed data, and marks good entries as reviewed. Run periodically after extraction."
+description: "Use when the user says 'review memories', 'clean up the memory database', 'process unreviewed memories', 'memory cleanup', 'merge duplicate memories', or wants periodic LLM-powered post-ingestion review. Removes junk, merges duplicates, fixes miskeyed data, marks good entries as reviewed."
 ---
 
 # Memory Review
