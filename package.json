@@ -46,9 +46,9 @@
   "devDependencies": {
     "@assistant-ui/react": "^0.12.25",
     "@google/generative-ai": "^0.24.1",
-    "@m13v/seo-components": "^0.31.2",
+    "@m13v/seo-components": "^0.31.3",
     "@remotion/player": "^4.0.446",
-    "@seo/components": "npm:@m13v/seo-components@^0.31.2",
+    "@seo/components": "npm:@m13v/seo-components@^0.31.3",
     "@supabase/supabase-js": "^2.103.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
