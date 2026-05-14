@@ -146,18 +146,30 @@ def read_cookies(
     key = _derive_key(_keychain_password(profile.browser))
     cookies: list[Cookie] = []
     skipped = 0
+    def _txt(b) -> str:
+        if b is None:
+            return ""
+        if isinstance(b, bytes):
+            return b.decode("utf-8", errors="replace")
+        return str(b)
+
     try:
         conn = sqlite3.connect(f"file:{tmp}?mode=ro", uri=True)
+        # Arc and some Chrome forks declare encrypted_value as TEXT, not BLOB,
+        # which makes sqlite3 try to UTF-8-decode the AES ciphertext and crash
+        # mid-iteration. Force everything to bytes and decode TEXT columns
+        # ourselves.
+        conn.text_factory = bytes
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT host_key, name, value, encrypted_value, path, expires_utc, "
             "is_secure, is_httponly, samesite FROM cookies"
         )
         for row in rows:
-            host = row["host_key"]
+            host = _txt(row["host_key"])
             if domain_filters and not any(d in host for d in domain_filters):
                 continue
-            value = row["value"] or ""
+            value = _txt(row["value"])
             if not value and row["encrypted_value"]:
                 value = _decrypt(row["encrypted_value"], key, host) or ""
                 if not value:
@@ -168,10 +180,10 @@ def read_cookies(
                 # Chromium epoch is 1601-01-01 in microseconds.
                 expires = (row["expires_utc"] / 1_000_000) - 11644473600
             cookies.append(Cookie(
-                name=row["name"],
+                name=_txt(row["name"]),
                 value=value,
                 domain=host,
-                path=row["path"] or "/",
+                path=_txt(row["path"]) or "/",
                 expires=expires,
                 secure=bool(row["is_secure"]),
                 http_only=bool(row["is_httponly"]),
