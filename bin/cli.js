@@ -25,11 +25,15 @@ const COPY_TARGETS = [
 // Never overwrite these during update
 const NEVER_OVERWRITE = new Set(['memories.db', '.venv', 'scripts', 'config.json']);
 
-// Core Python deps (tier 1) — enough for tag search, SQL, extraction
-// ccl_chromium_reader is only on GitHub, not PyPI
+// Core Python deps (tier 1) — enough for tag search, SQL, extraction,
+// plus cookies + localStorage sync (cryptography for AES-CBC decrypt of
+// Chromium cookie blobs, websocket-client for CDP injection).
+// ccl_chromium_reader is only on GitHub, not PyPI.
 const CORE_DEPS = [
   'git+https://github.com/cclgroupltd/ccl_chromium_reader.git',
   'numpy',
+  'cryptography',
+  'websocket-client',
 ];
 
 // Embedding deps (tier 2) — optional, for semantic search
