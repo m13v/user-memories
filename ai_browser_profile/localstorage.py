@@ -153,6 +153,13 @@ def inject_localstorage_via_cdp(
             if not origin.startswith("http"):
                 log.warning("Skipping non-http origin %r", origin)
                 continue
+            # Skip partitioned-storage origins like
+            # 'https://www.youtube.com/^0https://openai.com'. The '^' marker
+            # is Chromium's third-party storage partitioning; we can't navigate
+            # to that as a top-level URL.
+            if "^" in origin:
+                log.info("Skipping partitioned origin %r", origin)
+                continue
             url = origin.rstrip("/") + "/"
 
             target_id = None
