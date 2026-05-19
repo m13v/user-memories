@@ -194,9 +194,11 @@ def inject_localstorage_via_cdp(
             log.warning("attachToTarget(about:blank) failed: %s", r.get("error"))
             return 0
 
-        # Move the tab's window way off-screen so the user doesn't see it
-        # bounce through every origin. Best-effort; some Chrome builds reject
-        # negative window bounds, in which case we just stay on-screen.
+        # Minimize the tab's window so the user doesn't see it bounce through
+        # every origin. Off-screen positioning (`left=-32000`) gets clamped by
+        # Chrome to the nearest visible display, leaving the window peeking
+        # out of a corner — minimize is the only reliable hide on macOS.
+        # Best-effort; if minimize is rejected we just stay on-screen.
         try:
             msg_id += 1
             w = _cdp_send(ws, msg_id, "Browser.getWindowForTarget",
@@ -206,12 +208,10 @@ def inject_localstorage_via_cdp(
                 msg_id += 1
                 _cdp_send(ws, msg_id, "Browser.setWindowBounds", {
                     "windowId": window_id,
-                    "bounds": {"left": -32000, "top": -32000,
-                               "width": 800, "height": 600,
-                               "windowState": "normal"},
+                    "bounds": {"windowState": "minimized"},
                 })
         except Exception as e:
-            log.debug("Could not hide import window: %s", e)
+            log.debug("Could not minimize import window: %s", e)
 
         for origin, items in data.items():
             if not items:
