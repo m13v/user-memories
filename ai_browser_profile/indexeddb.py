@@ -457,12 +457,16 @@ def inject_indexeddb_via_cdp(
     cdp_url: str = "http://127.0.0.1:9655",
     load_wait_sec: float = 4.0,
 ) -> tuple[int, int]:
-    """Inject IndexedDB records into a running Chrome via per-origin tabs.
+    """Inject IndexedDB records into a running Chrome via a single reused tab.
 
-    Returns (written, total). For each origin we open a new tab at that
-    origin (so the JS context is same-origin), wait for initial load to let
-    the destination site bootstrap its own IDB schema, then run a single
-    Runtime.evaluate that replays all of our records.
+    Returns (written, total). Opens ONE tab at the start, hides it off-screen,
+    then navigates that same tab through each origin in sequence. For each
+    origin: navigate, wait for bootstrap, run a single Runtime.evaluate that
+    replays the IDB records via the standard JS API. Closes the tab at end.
+
+    This replaces the previous pattern of opening one visible tab per origin
+    (which produced a flood of tab open/close churn when many domains were in
+    the import list).
     """
     from websocket import create_connection
 
@@ -471,8 +475,46 @@ def inject_indexeddb_via_cdp(
     msg_id = 0
     total_records = 0
     total_written = 0
+    target_id: Optional[str] = None
+    session_id: Optional[str] = None
 
     try:
+        # Open ONE reusable tab. We start at about:blank and navigate it
+        # per origin below; reusing the tab is what eliminates the visible
+        # "open a tab per origin" UX issue when many domains are in scope.
+        msg_id += 1
+        r = _cdp_send(ws, msg_id, "Target.createTarget", {"url": "about:blank"})
+        target_id = r.get("result", {}).get("targetId")
+        if not target_id:
+            log.warning("createTarget(about:blank) failed: %s", r.get("error"))
+            return 0, 0
+
+        msg_id += 1
+        r = _cdp_send(ws, msg_id, "Target.attachToTarget",
+                      {"targetId": target_id, "flatten": True})
+        session_id = r.get("result", {}).get("sessionId")
+        if not session_id:
+            log.warning("attachToTarget(about:blank) failed: %s", r.get("error"))
+            return 0, 0
+
+        # Hide the import window off-screen so the user doesn't see it bounce
+        # through every origin. Best-effort.
+        try:
+            msg_id += 1
+            w = _cdp_send(ws, msg_id, "Browser.getWindowForTarget",
+                          {"targetId": target_id})
+            window_id = w.get("result", {}).get("windowId")
+            if window_id:
+                msg_id += 1
+                _cdp_send(ws, msg_id, "Browser.setWindowBounds", {
+                    "windowId": window_id,
+                    "bounds": {"left": -32000, "top": -32000,
+                               "width": 800, "height": 600,
+                               "windowState": "normal"},
+                })
+        except Exception as e:
+            log.debug("Could not hide import window: %s", e)
+
         for origin, dumps in data.items():
             if not dumps:
                 continue
@@ -489,84 +531,75 @@ def inject_indexeddb_via_cdp(
             total_records += origin_total
 
             url = origin.rstrip("/") + "/"
-            target_id = None
-            session_id = None
+
+            # Navigate the SAME tab to this origin. No new tab is created.
+            msg_id += 1
+            nav = _cdp_send(ws, msg_id, "Page.navigate", {"url": url},
+                            session_id=session_id)
+            err = nav.get("result", {}).get("errorText") or nav.get("error")
+            if err:
+                log.warning("  %s: navigate failed (%s)", origin, err)
+                continue
+
+            # Let the destination site finish its initial bootstrap (it may
+            # create its own IDB schema with the canonical keyPath/version;
+            # we then add to it).
+            time.sleep(load_wait_sec)
+
+            # Serialize the data to JSON and inline into the JS expression.
+            # Records can be large; CDP accepts multi-MB expressions.
+            payload = {
+                "dbs": [
+                    {
+                        "name": db.name,
+                        "stores": {
+                            sn: [{"key": r.key, "value": r.value} for r in recs]
+                            for sn, recs in db.stores.items()
+                        },
+                    }
+                    for db in dumps
+                ]
+            }
+            expression = _INJECT_JS.replace("__PAYLOAD__", json.dumps(payload))
+
+            msg_id += 1
+            r = _cdp_send(
+                ws, msg_id, "Runtime.evaluate",
+                {
+                    "expression": expression,
+                    "awaitPromise": True,
+                    "returnByValue": True,
+                    "timeout": 60000,
+                },
+                session_id=session_id,
+            )
+            result = r.get("result", {}).get("result", {})
+            exc = r.get("result", {}).get("exceptionDetails")
+            if exc:
+                log.warning("  %s: JS error %s", origin, exc.get("text") or exc)
+                continue
+            value = result.get("value")
+            try:
+                summary = json.loads(value).get("summary", []) if isinstance(value, str) else []
+            except Exception:
+                summary = []
+            origin_written = 0
+            for s in summary:
+                if s.get("opened"):
+                    origin_written += s.get("written", 0)
+                    if s.get("errored"):
+                        log.warning("  %s/%s: %d errored", origin, s.get("db"), s.get("errored"))
+                else:
+                    log.warning("  %s/%s: open failed (%s)", origin, s.get("db"), s.get("error"))
+            total_written += origin_written
+            log.info("  %s: wrote %d/%d records", origin, origin_written, origin_total)
+    finally:
+        if target_id:
             try:
                 msg_id += 1
-                r = _cdp_send(ws, msg_id, "Target.createTarget", {"url": url})
-                target_id = r.get("result", {}).get("targetId")
-                if not target_id:
-                    log.warning("Couldn't create tab for %s: %s", origin, r)
-                    continue
-
-                msg_id += 1
-                r = _cdp_send(ws, msg_id, "Target.attachToTarget",
-                              {"targetId": target_id, "flatten": True})
-                session_id = r.get("result", {}).get("sessionId")
-                if not session_id:
-                    log.warning("Couldn't attach to tab for %s: %s", origin, r)
-                    continue
-
-                # Let the destination site finish its initial bootstrap (it
-                # may create its own IDB schema with the canonical keyPath /
-                # version; we then add to it).
-                time.sleep(load_wait_sec)
-
-                # Serialize the data to JSON and inline into the JS expression.
-                # Records can be large; CDP accepts multi-MB expressions.
-                payload = {
-                    "dbs": [
-                        {
-                            "name": db.name,
-                            "stores": {
-                                sn: [{"key": r.key, "value": r.value} for r in recs]
-                                for sn, recs in db.stores.items()
-                            },
-                        }
-                        for db in dumps
-                    ]
-                }
-                expression = _INJECT_JS.replace("__PAYLOAD__", json.dumps(payload))
-
-                msg_id += 1
-                r = _cdp_send(
-                    ws, msg_id, "Runtime.evaluate",
-                    {
-                        "expression": expression,
-                        "awaitPromise": True,
-                        "returnByValue": True,
-                        "timeout": 60000,
-                    },
-                    session_id=session_id,
-                )
-                result = r.get("result", {}).get("result", {})
-                exc = r.get("result", {}).get("exceptionDetails")
-                if exc:
-                    log.warning("  %s: JS error %s", origin, exc.get("text") or exc)
-                    continue
-                value = result.get("value")
-                try:
-                    summary = json.loads(value).get("summary", []) if isinstance(value, str) else []
-                except Exception:
-                    summary = []
-                origin_written = 0
-                for s in summary:
-                    if s.get("opened"):
-                        origin_written += s.get("written", 0)
-                        if s.get("errored"):
-                            log.warning("  %s/%s: %d errored", origin, s.get("db"), s.get("errored"))
-                    else:
-                        log.warning("  %s/%s: open failed (%s)", origin, s.get("db"), s.get("error"))
-                total_written += origin_written
-                log.info("  %s: wrote %d/%d records", origin, origin_written, origin_total)
-            finally:
-                if target_id:
-                    try:
-                        msg_id += 1
-                        _cdp_send(ws, msg_id, "Target.closeTarget", {"targetId": target_id})
-                    except Exception:
-                        pass
-    finally:
+                _cdp_send(ws, msg_id, "Target.closeTarget", {"targetId": target_id})
+            except Exception:
+                pass
         ws.close()
 
     log.info("Injected %d/%d IndexedDB records total", total_written, total_records)
