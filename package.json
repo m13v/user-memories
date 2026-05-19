@@ -1,6 +1,6 @@
 {
   "name": "ai-browser-profile",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Extract user identity (name, emails, accounts, addresses, payments) from browser data into a self-ranking SQLite database. Install as a Claude Code agent skill.",
   "bin": {
     "ai-browser-profile": "bin/cli.js"
@@ -46,9 +46,9 @@
   "devDependencies": {
     "@assistant-ui/react": "^0.12.25",
     "@google/generative-ai": "^0.24.1",
-    "@m13v/seo-components": "^0.41.0",
+    "@m13v/seo-components": "^0.41.1",
     "@remotion/player": "^4.0.446",
-    "@seo/components": "npm:@m13v/seo-components@^0.41.0",
+    "@seo/components": "npm:@m13v/seo-components@^0.41.1",
     "@supabase/supabase-js": "^2.103.3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
