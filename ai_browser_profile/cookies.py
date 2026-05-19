@@ -143,6 +143,22 @@ def read_cookies(
         )
 
     domain_filters = list(domains) if domains else None
+
+    def _host_matches(host: str) -> bool:
+        # Domain-suffix match: 'x.com' matches 'x.com' / 'api.x.com' but not 'fedex.com'.
+        # Cookie host_keys often start with '.' for "all subdomains" — strip that.
+        h = host or ""
+        if "://" in h:
+            h = h.split("://", 1)[1]
+        h = h.split("/", 1)[0].split(":", 1)[0].lstrip(".").lower()
+        for f in (domain_filters or []):
+            ff = (f or "").strip().lstrip(".").lower()
+            if not ff:
+                continue
+            if h == ff or h.endswith("." + ff):
+                return True
+        return False
+
     key = _derive_key(_keychain_password(profile.browser))
     cookies: list[Cookie] = []
     skipped = 0
@@ -167,7 +183,7 @@ def read_cookies(
         )
         for row in rows:
             host = _txt(row["host_key"])
-            if domain_filters and not any(d in host for d in domain_filters):
+            if domain_filters and not _host_matches(host):
                 continue
             value = _txt(row["value"])
             if not value and row["encrypted_value"]:
