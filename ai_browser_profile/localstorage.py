@@ -148,19 +148,23 @@ def inject_localstorage_via_cdp(
     cdp_url: str = "http://127.0.0.1:9222",
     load_wait_sec: float = 4.0,
 ) -> int:
-    """Inject localStorage into a running Chrome via per-origin tabs.
+    """Inject localStorage into a running Chrome by reusing a single hidden tab.
 
-    For each origin: opens a new tab to that origin (so the JS context is
-    same-origin), waits for load, evaluates a localStorage.setItem batch via
-    Runtime.evaluate, then closes the tab. Returns total items written.
+    Opens ONE tab at the start, hides it off-screen, then navigates that same
+    tab through each origin in sequence to run a localStorage.setItem batch in
+    the page's JS context. Closes the tab at the end. Returns total items
+    written.
+
+    This replaces the previous pattern of opening one visible tab per origin
+    (which produced a flood of tab open/close churn when many domains were in
+    the import list).
 
     Args:
         data: dict of {origin -> {key: value}}. Origin must be http(s)://...
         cdp_url: base http(s) URL of the Chrome DevTools endpoint or a
                  cdp://host:port shorthand.
-        load_wait_sec: how long to wait between tab open and the JS eval to
-                       let the page initialize (no Page.loadEventFired listener
-                       yet — keep simple, race-tolerant via the JS try/catch).
+        load_wait_sec: seconds to wait after navigating between origins before
+                       injecting (lets the destination page initialize).
     """
     from websocket import create_connection
 
@@ -168,8 +172,47 @@ def inject_localstorage_via_cdp(
     ws = create_connection(ws_url, timeout=15, suppress_origin=True)
     msg_id = 0
     total_set = 0
+    target_id: Optional[str] = None
+    session_id: Optional[str] = None
 
     try:
+        # Open ONE reusable tab. We start at about:blank and navigate it
+        # per origin below; reusing the tab is what eliminates the visible
+        # "29 tabs flashing open" UX issue.
+        msg_id += 1
+        r = _cdp_send(ws, msg_id, "Target.createTarget", {"url": "about:blank"})
+        target_id = r.get("result", {}).get("targetId")
+        if not target_id:
+            log.warning("createTarget(about:blank) failed: %s", r.get("error"))
+            return 0
+
+        msg_id += 1
+        r = _cdp_send(ws, msg_id, "Target.attachToTarget",
+                      {"targetId": target_id, "flatten": True})
+        session_id = r.get("result", {}).get("sessionId")
+        if not session_id:
+            log.warning("attachToTarget(about:blank) failed: %s", r.get("error"))
+            return 0
+
+        # Move the tab's window way off-screen so the user doesn't see it
+        # bounce through every origin. Best-effort; some Chrome builds reject
+        # negative window bounds, in which case we just stay on-screen.
+        try:
+            msg_id += 1
+            w = _cdp_send(ws, msg_id, "Browser.getWindowForTarget",
+                          {"targetId": target_id})
+            window_id = w.get("result", {}).get("windowId")
+            if window_id:
+                msg_id += 1
+                _cdp_send(ws, msg_id, "Browser.setWindowBounds", {
+                    "windowId": window_id,
+                    "bounds": {"left": -32000, "top": -32000,
+                               "width": 800, "height": 600,
+                               "windowState": "normal"},
+                })
+        except Exception as e:
+            log.debug("Could not hide import window: %s", e)
+
         for origin, items in data.items():
             if not items:
                 continue
@@ -185,53 +228,44 @@ def inject_localstorage_via_cdp(
                 continue
             url = origin.rstrip("/") + "/"
 
-            target_id = None
+            # Navigate the SAME tab to this origin. No new tab is created.
+            msg_id += 1
+            nav = _cdp_send(ws, msg_id, "Page.navigate", {"url": url},
+                            session_id=session_id)
+            err = nav.get("result", {}).get("errorText") or nav.get("error")
+            if err:
+                log.warning("  %s: navigate failed (%s)", origin, err)
+                continue
+
+            time.sleep(load_wait_sec)
+
+            # Inline the items as a JS object literal; localStorage rejects
+            # non-string values implicitly by coercion (we already string-
+            # coerced in read_localstorage).
+            expr = (
+                "(function(){try{var items=" + json.dumps(items) + ";"
+                "var n=0;for(var k in items){try{localStorage.setItem(k,items[k]);n++;}catch(e){}}"
+                "return n;}catch(e){return 'ERROR:'+e.toString();}})()"
+            )
+            msg_id += 1
+            r = _cdp_send(
+                ws, msg_id, "Runtime.evaluate",
+                {"expression": expr, "returnByValue": True},
+                session_id=session_id,
+            )
+            value = r.get("result", {}).get("result", {}).get("value")
+            if isinstance(value, int):
+                total_set += value
+                log.info("  %s: set %d/%d items", origin, value, len(items))
+            else:
+                log.warning("  %s: %s", origin, value)
+    finally:
+        if target_id:
             try:
                 msg_id += 1
-                r = _cdp_send(ws, msg_id, "Target.createTarget", {"url": url})
-                target_id = r.get("result", {}).get("targetId")
-                if not target_id:
-                    log.warning("createTarget failed for %s: %s", origin, r.get("error"))
-                    continue
-
-                msg_id += 1
-                r = _cdp_send(ws, msg_id, "Target.attachToTarget",
-                              {"targetId": target_id, "flatten": True})
-                session_id = r.get("result", {}).get("sessionId")
-                if not session_id:
-                    log.warning("attachToTarget failed for %s", origin)
-                    continue
-
-                time.sleep(load_wait_sec)
-
-                # Inline the items as a JS object literal; localStorage rejects
-                # non-string values implicitly by coercion (we already string-
-                # coerced in read_localstorage).
-                expr = (
-                    "(function(){try{var items=" + json.dumps(items) + ";"
-                    "var n=0;for(var k in items){try{localStorage.setItem(k,items[k]);n++;}catch(e){}}"
-                    "return n;}catch(e){return 'ERROR:'+e.toString();}})()"
-                )
-                msg_id += 1
-                r = _cdp_send(
-                    ws, msg_id, "Runtime.evaluate",
-                    {"expression": expr, "returnByValue": True},
-                    session_id=session_id,
-                )
-                value = r.get("result", {}).get("result", {}).get("value")
-                if isinstance(value, int):
-                    total_set += value
-                    log.info("  %s: set %d/%d items", origin, value, len(items))
-                else:
-                    log.warning("  %s: %s", origin, value)
-            finally:
-                if target_id:
-                    try:
-                        msg_id += 1
-                        _cdp_send(ws, msg_id, "Target.closeTarget", {"targetId": target_id})
-                    except Exception:
-                        pass
-    finally:
+                _cdp_send(ws, msg_id, "Target.closeTarget", {"targetId": target_id})
+            except Exception:
+                pass
         ws.close()
 
     log.info("Injected %d localStorage items total", total_set)
