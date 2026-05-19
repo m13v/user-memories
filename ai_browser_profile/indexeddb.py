@@ -179,15 +179,50 @@ def read_indexeddb(
         [o.strip() for o in origins if o and o.strip()] if origins else None
     )
 
+    # Defaults to skip even when no explicit filter is given:
+    #   chrome-extension://  — extensions, not portable across browsers
+    #   localhost / 127.*    — dev servers, irrelevant across machines
+    #   file://              — local file URLs
+    SKIP_PREFIXES = (
+        "chrome-extension://",
+        "http://localhost",
+        "https://localhost",
+        "http://127.",
+        "https://127.",
+        "file://",
+    )
+    # Skip pathologically large origins by default (e.g. kapwing video editor
+    # which stores 2 GB of project blobs). Caller can still ask for them
+    # explicitly via origin_filter.
+    MAX_LEVELDB_BYTES = 200 * 1024 * 1024  # 200 MB
+
+    def _dir_size(p) -> int:
+        try:
+            return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+        except Exception:
+            return 0
+
     out: dict[str, list[IdbDbDump]] = {}
     skipped_dbs = 0
+    skipped_origins = 0
 
     for leveldb_dir in sorted(idb_root.glob("*.indexeddb.leveldb")):
         origin = _idb_dir_to_origin(leveldb_dir.name)
         if origin is None:
             continue
-        if origin_filter and not any(f in origin for f in origin_filter):
-            continue
+        if origin_filter:
+            if not any(f in origin for f in origin_filter):
+                continue
+        else:
+            # No explicit filter — apply default safety skips.
+            if any(origin.startswith(p) for p in SKIP_PREFIXES):
+                skipped_origins += 1
+                continue
+            size = _dir_size(leveldb_dir)
+            if size > MAX_LEVELDB_BYTES:
+                log.info("skipping oversized IndexedDB %s (%.1f MB)", origin, size/1024/1024)
+                skipped_origins += 1
+                continue
 
         blob_dir = leveldb_dir.parent / leveldb_dir.name.replace(".leveldb", ".blob")
 
