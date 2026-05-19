@@ -214,14 +214,19 @@ def inject_via_cdp(
     cookies: Iterable[Cookie],
     cdp_url: str = "http://127.0.0.1:9222",
 ) -> int:
-    """Inject cookies into a running Chrome via CDP Storage.setCookies.
+    """Inject cookies into a running Chrome via CDP.
+
+    Tries Storage.setCookies at the browser root first. If the browser has
+    zero Page targets that command fails with "Browser context management is
+    not supported" — in that case we fall back to opening a stub about:blank
+    tab, attaching to it, and using Network.setCookies on that session.
 
     Args:
         cookies: iterable of Cookie objects.
         cdp_url: base http(s) URL of the Chrome DevTools endpoint, or a
                  cdp://host:port shorthand, or a raw ws:// URL.
 
-    Returns: number of cookies submitted (the browser accepts them as a batch).
+    Returns: number of cookies actually accepted by Chrome.
     """
     from websocket import create_connection
 
@@ -230,6 +235,22 @@ def inject_via_cdp(
     # unless the target was launched with --remote-allow-origins. Suppressing
     # the header bypasses the check; localhost CDP is already privileged.
     ws = create_connection(ws_url, timeout=10, suppress_origin=True)
+    msg_id = 0
+
+    def _send(method, params=None, session_id=None):
+        nonlocal msg_id
+        msg_id += 1
+        msg = {"id": msg_id, "method": method}
+        if params:
+            msg["params"] = params
+        if session_id:
+            msg["sessionId"] = session_id
+        ws.send(json.dumps(msg))
+        while True:
+            resp = json.loads(ws.recv())
+            if resp.get("id") == msg_id:
+                return resp
+
     try:
         batch = []
         for c in cookies:
@@ -248,19 +269,49 @@ def inject_via_cdp(
             batch.append(param)
         if not batch:
             return 0
-        ws.send(json.dumps({
-            "id": 1,
-            "method": "Storage.setCookies",
-            "params": {"cookies": batch},
-        }))
-        resp = json.loads(ws.recv())
-        if "error" in resp:
-            log.warning("Storage.setCookies failed: %s", resp["error"])
+
+        # First: try Storage.setCookies at the browser root. Works when at
+        # least one Page target exists (i.e. any tab is open).
+        resp = _send("Storage.setCookies", {"cookies": batch})
+        err = resp.get("error", {})
+        if not err:
+            log.info("Injected %d cookies via Storage.setCookies", len(batch))
+            return len(batch)
+
+        # Fallback: open a stub tab so the browser context is materialised,
+        # then use Network.setCookies on its session.
+        msg = err.get("message", "")
+        if "Browser context management is not supported" not in msg:
+            log.warning("Storage.setCookies failed: %s", err)
             return 0
+
+        log.info("Storage.setCookies unavailable (no tabs); opening stub tab and retrying via Network.setCookies")
+        target_id = None
+        try:
+            r = _send("Target.createTarget", {"url": "about:blank"})
+            target_id = r.get("result", {}).get("targetId")
+            if not target_id:
+                log.warning("Couldn't create stub tab: %s", r)
+                return 0
+            r = _send("Target.attachToTarget", {"targetId": target_id, "flatten": True})
+            session_id = r.get("result", {}).get("sessionId")
+            if not session_id:
+                log.warning("Couldn't attach to stub tab: %s", r)
+                return 0
+            r = _send("Network.setCookies", {"cookies": batch}, session_id=session_id)
+            if r.get("error"):
+                log.warning("Network.setCookies failed: %s", r["error"])
+                return 0
+            log.info("Injected %d cookies via Network.setCookies (per-tab fallback)", len(batch))
+            return len(batch)
+        finally:
+            if target_id:
+                try:
+                    _send("Target.closeTarget", {"targetId": target_id})
+                except Exception:
+                    pass
     finally:
         ws.close()
-    log.info("Injected %d cookies via CDP", len(batch))
-    return len(batch)
 
 
 # --- helpers used by CLI and external callers ---
