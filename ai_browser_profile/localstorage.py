@@ -33,6 +33,29 @@ from ai_browser_profile.cookies import _ws_from_cdp_url, find_profile
 log = logging.getLogger(__name__)
 
 
+def _host_matches(host: str, filters: list[str]) -> bool:
+    """Domain-suffix match: filter 'x.com' matches 'x.com' and 'sub.x.com',
+    but NOT 'fedex.com' or 'swiftpackageindex.com'.
+
+    Accepts either a raw host like 'example.com' or a full origin like
+    'https://example.com' / 'https://example.com:8080'.
+    """
+    if not host:
+        return False
+    h = host
+    if "://" in h:
+        h = h.split("://", 1)[1]
+    h = h.split("/", 1)[0].split(":", 1)[0]  # strip path and port
+    h = h.lstrip(".").lower()
+    for f in filters:
+        ff = f.strip().lstrip(".").lower()
+        if not ff:
+            continue
+        if h == ff or h.endswith("." + ff):
+            return True
+    return False
+
+
 def read_localstorage(
     profile: BrowserProfile,
     origins: Optional[Iterable[str]] = None,
@@ -77,7 +100,7 @@ def read_localstorage(
                 value = record.value
                 if not origin or not key or value is None:
                     continue
-                if origin_filters and not any(f in origin for f in origin_filters):
+                if origin_filters and not _host_matches(origin, origin_filters):
                     continue
                 if isinstance(value, bytes):
                     try:
