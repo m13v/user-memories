@@ -179,6 +179,21 @@ def read_indexeddb(
         [o.strip() for o in origins if o and o.strip()] if origins else None
     )
 
+    def _host_matches(origin: str) -> bool:
+        # Domain-suffix match: filter 'x.com' matches 'x.com' and
+        # 'api.x.com' but NOT 'fedex.com' / 'swiftpackageindex.com'.
+        h = origin or ""
+        if "://" in h:
+            h = h.split("://", 1)[1]
+        h = h.split("/", 1)[0].split(":", 1)[0].lstrip(".").lower()
+        for f in (origin_filter or []):
+            ff = (f or "").strip().lstrip(".").lower()
+            if not ff:
+                continue
+            if h == ff or h.endswith("." + ff):
+                return True
+        return False
+
     # Defaults to skip even when no explicit filter is given:
     #   chrome-extension://  — extensions, not portable across browsers
     #   localhost / 127.*    — dev servers, irrelevant across machines
@@ -211,7 +226,7 @@ def read_indexeddb(
         if origin is None:
             continue
         if origin_filter:
-            if not any(f in origin for f in origin_filter):
+            if not _host_matches(origin):
                 continue
         else:
             # No explicit filter — apply default safety skips.
